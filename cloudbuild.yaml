@@ -1,0 +1,44 @@
+# Continuous deployment: GitHub push -> Cloud Build -> Artifact Registry -> Cloud Run.
+# Used by the Cloud Build trigger described in docs/DEPLOYMENT.md.
+#
+# Only the image changes on each deploy. Env vars, secrets, the runtime service
+# account, and scaling limits are set once on the Cloud Run service and are kept
+# by every later revision.
+#
+# Run it without a push: gcloud builds triggers run project-telos-main --region=us-central1 --branch=main
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE: project-telos
+  _AR_REPO: project-telos
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_IMAGE}:${SHORT_SHA}", "-t", "${_IMAGE}:latest", "."]
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "--all-tags", "${_IMAGE}"]
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --quiet
+
+images:
+  - ${_IMAGE}:${SHORT_SHA}
+  - ${_IMAGE}:latest
+
+timeout: 1200s

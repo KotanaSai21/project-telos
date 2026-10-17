@@ -141,6 +141,7 @@ export interface ThumbnailTruthResult {
   note: string;
   translation?: { detectedLanguage: string; translated: boolean; provider: string } | null;
   youtubeVideo?: YouTubeCandidate | null;
+  analysedWindowSec?: number | null;
   promisedTopics?: string[];
   actualTopics?: string[];
   evidence?: Array<{ promised: string; observed: string; startSec: number | null; endSec: number | null }>;
@@ -180,6 +181,13 @@ export interface ThumbnailTruthYouTubeRequest {
   transcript: string;
   region: string;
   consentToGoogleAnalysis: boolean;
+  /** Analyse only the opening seconds; omit for the whole video. */
+  clipSeconds?: number;
+}
+
+export interface ThumbnailTruthYouTubePreview {
+  video: YouTubeCandidate;
+  maxFullSeconds: number;
 }
 
 export interface ThumbnailRedesignRequest {

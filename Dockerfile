@@ -1,6 +1,7 @@
 # Project Telos - one Cloud Run service hosting the web app and the API.
 # Build:  docker build -t project-telos .
 # Run:    docker run -p 8080:8080 --env-file .env project-telos
+# Deploy: pushes to main build and deploy through cloudbuild.yaml (docs/DEPLOYMENT.md).
 
 # --- Stage 1: build the React web app -------------------------------------
 FROM node:22-slim AS web

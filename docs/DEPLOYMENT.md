@@ -27,7 +27,7 @@ The offline demo works without credentials. To enable live Google features:
 
 If Google rejects `gemini-2.5-flash` as unavailable to new users, select an
 available replacement in `PROJECT_TELOS_GEMINI_MODEL` and restart the API.
-`gemini-3.8-flash` was verified with the public-video creator check.
+`gemini-3.5-flash` (Vertex AI, location `global`) was verified with the public-video creator check.
 Restart after changing `.env`; Python source reload does not reliably reload
 environment-file settings. Creator scans require `google-genai>=2.29.0` and
 use its JSON Schema configuration, not the narrower legacy response-schema format.
@@ -121,47 +121,177 @@ write failures are logged and do not fail a user request.
 
 ## Deploy
 
-Prerequisites: the [gcloud CLI](https://cloud.google.com/sdk/docs/install), a
-Google Cloud project with billing enabled, and a terminal at the repository root.
-The first deployment enables the optional integrations; remove Firestore,
-BigQuery, or Translation settings if you do not need them.
+Deployment has two parts:
+
+1. **One-time setup and first deploy** (below, from your machine). This creates the
+   Cloud Run service and sets its env vars, secrets, and runtime service account.
+2. **Continuous deployment from GitHub.** A Cloud Build trigger runs
+   [cloudbuild.yaml](../cloudbuild.yaml) on every push to `main`: it builds the root
+   [Dockerfile](../Dockerfile), pushes the image to Artifact Registry, and deploys it.
+   Each deploy changes only the image; the service configuration from step 1 is kept.
+
+Prerequisites: the [gcloud CLI](https://cloud.google.com/sdk/docs/install), a Google
+Cloud project with billing enabled, admin access to the GitHub repository, and a
+PowerShell terminal at the repository root. The commands use Vertex AI with
+Application Default Credentials; see [Using a Gemini API key instead](#using-a-gemini-api-key-instead).
+
+### 1. Project setup
 
 ```powershell
 $PROJECT = "your-project-id"; $REGION = "us-central1"
 gcloud config set project $PROJECT
+$NUM = gcloud projects describe $PROJECT --format="value(projectNumber)"
 
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com `
-  firestore.googleapis.com bigquery.googleapis.com translate.googleapis.com `
-  secretmanager.googleapis.com generativelanguage.googleapis.com youtube.googleapis.com
+  secretmanager.googleapis.com aiplatform.googleapis.com youtube.googleapis.com `
+  firestore.googleapis.com bigquery.googleapis.com translate.googleapis.com
 
+# Image registry used by cloudbuild.yaml (_AR_REPO).
+gcloud artifacts repositories create project-telos --repository-format=docker --location=$REGION
+
+# Optional integrations; skip any you do not enable in step 3.
 gcloud firestore databases create --location=$REGION
 bq --location=US mk --dataset "${PROJECT}:project_telos_analytics"
+```
 
-# Store keys in Secret Manager, not in the image or source control.
-"YOUR_GEMINI_KEY"  | gcloud secrets create GEMINI_API_KEY  --data-file=-
-"YOUR_YOUTUBE_KEY" | gcloud secrets create YOUTUBE_API_KEY --data-file=-
+### 2. Service accounts and secrets
 
-# Grant the runtime service account the permissions for the enabled integrations.
-$NUM = gcloud projects describe $PROJECT --format="value(projectNumber)"
-$SA  = "$NUM-compute@developer.gserviceaccount.com"
-foreach ($role in "roles/datastore.user","roles/bigquery.dataEditor","roles/bigquery.jobUser",
-                  "roles/cloudtranslate.user","roles/secretmanager.secretAccessor") {
-  gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role=$role
+Use two dedicated identities: one the app runs as, and one Cloud Build deploys with.
+
+```powershell
+gcloud iam service-accounts create telos-runtime  --display-name="Project Telos runtime"
+gcloud iam service-accounts create telos-deployer --display-name="Project Telos deployer"
+$RUNTIME  = "telos-runtime@$PROJECT.iam.gserviceaccount.com"
+$DEPLOYER = "telos-deployer@$PROJECT.iam.gserviceaccount.com"
+
+# What the running app may call. Drop roles for integrations you do not enable.
+foreach ($role in "roles/aiplatform.user","roles/secretmanager.secretAccessor","roles/datastore.user",
+                  "roles/bigquery.dataEditor","roles/bigquery.jobUser","roles/cloudtranslate.user") {
+  gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$RUNTIME" --role=$role
 }
 
+# What a build may do: push images, deploy Cloud Run, write build logs.
+foreach ($role in "roles/run.developer","roles/artifactregistry.writer","roles/logging.logWriter") {
+  gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$DEPLOYER" --role=$role
+}
+# The deployer must be allowed to deploy a service that runs as the runtime account.
+gcloud iam service-accounts add-iam-policy-binding $RUNTIME `
+  --member="serviceAccount:$DEPLOYER" --role="roles/iam.serviceAccountUser"
+
+# Keys live in Secret Manager, never in the image, the repo, or a VITE_ variable.
+Set-Content -NoNewline -Path youtube.key -Value "YOUR_YOUTUBE_KEY"
+gcloud secrets create YOUTUBE_API_KEY --data-file=youtube.key
+Remove-Item youtube.key
+
+# Site access code: every visitor must enter it before the app or API responds.
+Set-Content -NoNewline -Path access.code -Value "YOUR_ACCESS_CODE"
+gcloud secrets create PROJECT_TELOS_ACCESS_CODE --data-file=access.code
+Remove-Item access.code
+```
+
+`Set-Content -NoNewline` avoids the trailing newline PowerShell piping adds, which
+makes Google reject a key. Restrict the YouTube key to YouTube Data API v3.
+
+### 3. First deploy
+
+```powershell
 gcloud run deploy project-telos --source . --region $REGION --allow-unauthenticated `
-  --memory 1Gi --max-instances 3 `
-  --set-env-vars "PROJECT_TELOS_PROVIDER=gemini,PROJECT_TELOS_STORAGE=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT,PROJECT_TELOS_BIGQUERY_ENABLED=true,PROJECT_TELOS_BIGQUERY_DATASET=project_telos_analytics,PROJECT_TELOS_TRANSLATION_ENABLED=true" `
-  --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest"
+  --service-account $RUNTIME --memory 1Gi --max-instances 3 --timeout 300 `
+  --set-env-vars "PROJECT_TELOS_PROVIDER=vertex,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,PROJECT_TELOS_GEMINI_MODEL=gemini-3.5-flash,PROJECT_TELOS_OFFLINE_FALLBACK=false,PROJECT_TELOS_STORAGE=firestore,PROJECT_TELOS_BIGQUERY_ENABLED=true,PROJECT_TELOS_BIGQUERY_DATASET=project_telos_analytics,PROJECT_TELOS_TRANSLATION_ENABLED=true" `
+  --set-secrets "YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest,PROJECT_TELOS_ACCESS_CODE=PROJECT_TELOS_ACCESS_CODE:latest"
+
+# Optional one-line hint under the code box. ^|^ makes | the separator, because the hint has commas.
+gcloud run services update project-telos --region $REGION `
+  --update-env-vars '^|^PROJECT_TELOS_ACCESS_HINT=Two words, and the first one starts with "Chinna".|PROJECT_TELOS_ACCESS_HINT_ENABLED=true'
 
 $URL = gcloud run services describe project-telos --region $REGION --format="value(status.url)"
 gcloud run services update project-telos --region $REGION --update-env-vars "PROJECT_TELOS_ALLOWED_ORIGINS=$URL"
 curl "$URL/api/health"
 ```
 
-PowerShell piping can add a trailing newline to a key. If a key is rejected, create
-the secret from a file written with `Set-Content -NoNewline`. Restrict the YouTube
-key to YouTube Data API v3 and the Gemini key to the Generative Language API.
+`--source .` builds the same Dockerfile with Cloud Build. Files ignored by git
+(including `.env`) are not uploaded. `--timeout 300` leaves room for a whole-video
+creator check, which runs two Gemini calls with one retry each.
+
+`GOOGLE_CLOUD_LOCATION=global` is required for `gemini-3.5-flash`; regional
+locations such as `us-central1` may not serve it. The Cloud Run region and the
+Vertex location are independent.
+
+### 4. Connect the GitHub repository
+
+The connection uses a GitHub OAuth app, so do this part in the browser:
+
+1. Open **Cloud Build → Repositories** ([console](https://console.cloud.google.com/cloud-build/repositories/2nd-gen)),
+   choose region `us-central1`, and select **Create host connection → GitHub**.
+   Name it `github` and authorize the **Google Cloud Build** GitHub app.
+2. When asked, install the app on your account and grant it access to only the
+   `project-telos` repository.
+3. Back in the console, select **Link repository**, choose the `github` connection
+   and `KotanaSai21/project-telos`. Keep the generated name `KotanaSai21-project-telos`.
+
+Then create the trigger:
+
+```powershell
+gcloud builds triggers create github --name=project-telos-main --region=$REGION `
+  --repository="projects/$PROJECT/locations/$REGION/connections/github/repositories/KotanaSai21-project-telos" `
+  --branch-pattern='^main$' --build-config=cloudbuild.yaml `
+  --service-account="projects/$PROJECT/serviceAccounts/$DEPLOYER"
+```
+
+If your Cloud Run region is not `us-central1`, also pass
+`--substitutions=_REGION=$REGION` so the build pushes to and deploys in that region.
+
+Test the trigger without pushing a commit:
+
+```powershell
+gcloud builds triggers run project-telos-main --region=$REGION --branch=main
+gcloud builds list --region=$REGION --limit=3
+```
+
+From now on every push to `main` builds and deploys. A failed build leaves the
+current revision serving. Builds appear under **Cloud Build → History**, and each
+image is tagged with its short commit SHA.
+
+> **Alternative (all in the console):** Cloud Run → the `project-telos` service →
+> **Connect repo** (Set up continuous deployment) walks through the same GitHub
+> connection and creates a Dockerfile-based trigger. It does not use
+> `cloudbuild.yaml` or the dedicated deployer account, so prefer the steps above.
+
+### Access code
+
+With `PROJECT_TELOS_ACCESS_CODE` set, the page asks for the code first, and every
+API route except `/api/health` and `/api/access/*` answers 401 without it. A correct
+code sets an HttpOnly cookie for seven days; changing the code signs everyone out.
+Case and spaces are ignored, and ten wrong tries in five minutes from one
+address are refused with 429. Hide the hint with
+`PROJECT_TELOS_ACCESS_HINT_ENABLED=false`; remove the secret to open the site.
+
+This is a shared password for a prototype, not user accounts.
+
+### Changing configuration later
+
+The pipeline never changes env vars or secrets. Change them on the service; the
+next push keeps them:
+
+```powershell
+gcloud run services update project-telos --region $REGION --update-env-vars "PROJECT_TELOS_GEMINI_MODEL=gemini-2.5-flash"
+gcloud secrets versions add YOUTUBE_API_KEY --data-file=youtube.key   # then redeploy or update the service
+```
+
+### Using a Gemini API key instead
+
+To use the Gemini Developer API rather than Vertex AI, store the key and change
+the provider. The runtime account then does not need `roles/aiplatform.user`.
+
+```powershell
+Set-Content -NoNewline -Path gemini.key -Value "YOUR_GEMINI_KEY"
+gcloud secrets create GEMINI_API_KEY --data-file=gemini.key; Remove-Item gemini.key
+gcloud run services update project-telos --region $REGION `
+  --update-env-vars "PROJECT_TELOS_PROVIDER=gemini" `
+  --update-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest"
+```
+
+Restrict the Gemini key to the Generative Language API.
 
 ### Verify, analyze, and roll back
 

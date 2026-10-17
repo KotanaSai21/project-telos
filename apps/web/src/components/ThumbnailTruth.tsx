@@ -9,9 +9,15 @@ import type {
   ThumbnailTruthResult,
   ThumbnailTruthSample,
   ThumbnailTruthStatus,
+  ThumbnailTruthYouTubePreview,
 } from '../api/types';
 
 type Mode = 'upload' | 'youtube';
+/** Seconds from the start of the video to analyse, or the whole video. */
+type Clip = number | 'full';
+
+const QUICK_CLIP_SECONDS = 60;
+const LONG_CLIP_SECONDS = 300;
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
@@ -111,6 +117,93 @@ function SampleThumbnail({ sample }: { sample: ThumbnailTruthSample }) {
   );
 }
 
+function clipLabel(clip: Clip): string {
+  return clip === 'full' ? 'the whole video' : `the first ${formatTimecode(clip)}`;
+}
+
+/** What is being analysed and how long it has taken. Steps are typical, not live server state. */
+function AnalysisProgress({ mode, clip, onCancel }: { mode: Mode; clip: Clip; onCancel: () => void }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const started = Date.now();
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const steps = mode === 'youtube'
+    ? ['Fetch the real thumbnail and title', `Gemini watches ${clipLabel(clip)}`, 'Ghost entity scan', 'Sentiment scan']
+    : ['Send thumbnail and evidence', 'Ghost entity scan', 'Sentiment scan'];
+  const expected = mode === 'youtube' && clip === 'full'
+    ? 'Whole videos can take a minute or more.'
+    : 'Usually 15–40 seconds.';
+
+  return (
+    <div className="tt-progress" role="status" aria-live="polite">
+      <div className="tt-progress-head">
+        <span className="tt-spinner" aria-hidden="true" />
+        <strong>Verifying… {elapsed}s</strong>
+        <button type="button" className="tt-chip" onClick={onCancel}>Cancel</button>
+      </div>
+      <div className="tt-progress-bar" aria-hidden="true"><span /></div>
+      <ol className="tt-progress-steps">{steps.map((step) => <li key={step}>{step}</li>)}</ol>
+      <p className="tt-muted">{expected} Results appear below when the check finishes.</p>
+    </div>
+  );
+}
+
+/** Metadata for the pasted link, and how much of the video to analyse. */
+function ClipPicker({ preview, loading, clip, disabled, onClip }: {
+  preview: ThumbnailTruthYouTubePreview | null; loading: boolean; clip: Clip; disabled: boolean;
+  onClip: (clip: Clip) => void;
+}) {
+  if (loading) return <p className="tt-wide tt-muted" role="status">Looking up the video…</p>;
+  if (!preview) return null;
+  const { video, maxFullSeconds } = preview;
+  const duration = video.durationSec;
+  const tooLong = duration !== null && duration > maxFullSeconds;
+  const options: Array<{ clip: Clip; label: string; hint: string }> = [];
+  if (duration === null || duration > QUICK_CLIP_SECONDS) {
+    options.push({ clip: QUICK_CLIP_SECONDS, label: 'First minute', hint: 'Fastest · recommended' });
+  }
+  if (duration === null || duration > LONG_CLIP_SECONDS) {
+    options.push({ clip: LONG_CLIP_SECONDS, label: 'First 5 minutes', hint: 'Slower, more evidence' });
+  }
+  options.push({
+    clip: 'full', label: 'Whole video',
+    hint: tooLong ? `Over the ${formatTimecode(maxFullSeconds)} limit` : 'Slowest, full evidence',
+  });
+
+  return (
+    <div className="tt-wide tt-clip">
+      <div className="tt-clip-video">
+        <img src={`https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`} alt="" />
+        <div>
+          <strong>{video.title}</strong>
+          <span className="tt-muted">
+            {video.channel}{duration !== null ? ` · ${formatTimecode(duration)}` : ' · length unknown'}
+          </span>
+        </div>
+      </div>
+      {options.length > 1 && (
+        <div className="tt-mode tt-clip-options" role="group" aria-label="How much of the video to analyse">
+          {options.map((option) => (
+            <button key={String(option.clip)} type="button" aria-pressed={clip === option.clip}
+              disabled={disabled || (option.clip === 'full' && tooLong)} onClick={() => onClip(option.clip)}>
+              {option.label}<small>{option.hint}</small>
+            </button>
+          ))}
+        </div>
+      )}
+      {clip !== 'full' && (
+        <p className="tt-muted">
+          Only {clipLabel(clip)} is analysed. Anything later in the video is not checked against the thumbnail.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
   const ghosts = result.ghostTracker.filter((item) => item.status === 'ghost').length;
   return (
@@ -121,12 +214,18 @@ function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
           {result.source === 'gemini' ? `Live Gemini · ${result.model}` : 'Reviewed sample · no model call'}
         </span>
       </div>
-      {(result.youtubeVideo || result.translation) && (
+      {(result.youtubeVideo || result.translation || result.analysedWindowSec != null) && (
         <div className="tt-badges">
           {result.youtubeVideo && (
             <a className="project-telos-pill" href={result.youtubeVideo.canonicalUrl} target="_blank" rel="noreferrer">
               ▶ {result.youtubeVideo.title} · {result.youtubeVideo.channel}
             </a>
+          )}
+          {result.analysedWindowSec != null && (
+            <span className="project-telos-pill">
+              Analysed first {formatTimecode(result.analysedWindowSec)}
+              {result.youtubeVideo?.durationSec != null && ` of ${formatTimecode(result.youtubeVideo.durationSec)}`}
+            </span>
           )}
           {result.translation && (
             <span className="project-telos-pill">
@@ -299,11 +398,15 @@ export function ThumbnailTruth() {
   const [consent, setConsent] = useState(false);
   const [mode, setMode] = useState<Mode>('upload');
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [preview, setPreview] = useState<ThumbnailTruthYouTubePreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [clip, setClip] = useState<Clip>(QUICK_CLIP_SECONDS);
   const [result, setResult] = useState<ThumbnailTruthResult | null>(null);
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revisionNote, setRevisionNote] = useState<string | null>(null);
   const mounted = useRef(true);
+  const inFlight = useRef<AbortController | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLElement>(null);
 
@@ -325,6 +428,29 @@ export function ThumbnailTruth() {
     })();
     return () => { mounted.current = false; };
   }, []);
+
+  // Look up the pasted link (title, length) so the creator can choose how much to analyse.
+  useEffect(() => {
+    const url = youtubeUrl.trim();
+    setPreview(null);
+    if (mode !== 'youtube' || !url) { setPreviewing(false); return; }
+    const controller = new AbortController();
+    setPreviewing(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const found = await api.thumbnailTruthYoutubePreview(url, controller.signal);
+        if (controller.signal.aborted) return;
+        setPreview(found);
+        const duration = found.video.durationSec;
+        setClip(duration !== null && duration <= QUICK_CLIP_SECONDS ? 'full' : QUICK_CLIP_SECONDS);
+      } catch {
+        // Not fatal: the check itself reports invalid or unavailable links.
+      } finally {
+        if (!controller.signal.aborted) setPreviewing(false);
+      }
+    }, 400);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [mode, youtubeUrl]);
 
   async function pick(file: File | null, kind: 'thumbnail' | 'video') {
     setError(null);
@@ -392,23 +518,33 @@ export function ThumbnailTruth() {
     setResult(null);
     setError(null);
     setRevisionNote(null);
+    const controller = new AbortController();
+    inFlight.current = controller;
     try {
       const verdict = mode === 'youtube'
         ? await api.thumbnailTruthAnalyseYoutube({
           url: youtubeUrl.trim(), transcript, region, consentToGoogleAnalysis: consent,
-        })
+          ...(clip !== 'full' ? { clipSeconds: clip } : {}),
+        }, controller.signal)
         : await api.thumbnailTruthAnalyse({
           title, description, transcript, region,
           thumbnail: thumbnail!.upload,
           ...(video ? { video: video.upload } : {}),
           consentToGoogleAnalysis: consent,
-        });
+        }, controller.signal);
       if (mounted.current) setResult(verdict);
     } catch (cause) {
-      if (mounted.current) setError(cause instanceof Error ? cause.message : 'Analysis failed; no verdict was produced');
+      if (!mounted.current) return;
+      if (controller.signal.aborted) setError('Check cancelled. No verdict was produced.');
+      else setError(cause instanceof Error ? cause.message : 'Analysis failed; no verdict was produced');
     } finally {
+      if (inFlight.current === controller) inFlight.current = null;
       if (mounted.current) setAnalysing(false);
     }
+  }
+
+  function cancel() {
+    inFlight.current?.abort();
   }
 
   const live = status?.liveConfigured ?? false;
@@ -458,9 +594,10 @@ export function ThumbnailTruth() {
                   aria-pressed={youtubeUrl === link.url} onClick={() => setYoutubeUrl(link.url)}>{link.label}</button>
               ))}
             </div>
+            <ClipPicker preview={preview} loading={previewing} clip={clip} disabled={analysing} onClip={setClip} />
             <p className="tt-wide tt-muted">
               Project Telos fetches the real thumbnail and title from YouTube, then Gemini watches the public video
-              itself. Videos up to 20 minutes.
+              itself. Long videos can be checked by their opening minutes; whole videos up to 20 minutes.
             </p>
           </div>
         ) : (
@@ -520,6 +657,7 @@ export function ThumbnailTruth() {
         <button type="button" className="project-telos-button journey-cta tt-verify" disabled={!canVerify} onClick={() => void verify()}>
           {analysing ? 'Verifying…' : 'Verify platform integrity'}
         </button>
+        {analysing && <AnalysisProgress mode={mode} clip={clip} onCancel={cancel} />}
       </section>
 
       <section className="tt-panel" aria-labelledby="tt-samples-title">
@@ -549,7 +687,6 @@ export function ThumbnailTruth() {
       </section>
 
       {error && <p role="alert" className="tt-error">{error}</p>}
-      {analysing && <p role="status" className="tt-muted">Running ghost entity and sentiment scans…</p>}
       {result && <div ref={resultsRef}>
         <Diagnostics result={result} />
         <button type="button" className="project-telos-button secondary" onClick={() => revise()}>

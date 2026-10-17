@@ -9,7 +9,7 @@ import { ThumbnailTruth } from './ThumbnailTruth';
 vi.mock('../api/client', () => ({
   api: {
     thumbnailTruthStatus: vi.fn(), thumbnailTruthSamples: vi.fn(), thumbnailTruthAnalyse: vi.fn(),
-    thumbnailTruthAnalyseYoutube: vi.fn(), thumbnailTruthRedesign: vi.fn(),
+    thumbnailTruthAnalyseYoutube: vi.fn(), thumbnailTruthRedesign: vi.fn(), thumbnailTruthYoutubePreview: vi.fn(),
   },
 }));
 
@@ -165,7 +165,7 @@ describe('ThumbnailTruth', () => {
     render(<ThumbnailTruth />);
     await userEvent.click(await screen.findByRole('button', { name: 'Published YouTube link' }));
     expect(screen.queryByLabelText(/Upload custom thumbnail/)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Me at the zoo (19s)' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Me at the zoo (0:19)' }));
     expect(screen.getByLabelText('Public YouTube video link')).toHaveValue('https://www.youtube.com/watch?v=jNQXAC9IVRw');
     const verify = screen.getByRole('button', { name: 'Verify platform integrity' });
     expect(verify).toBeDisabled();
@@ -174,10 +174,43 @@ describe('ThumbnailTruth', () => {
 
     expect(api.thumbnailTruthAnalyseYoutube).toHaveBeenCalledWith({
       url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', transcript: '', region: '', consentToGoogleAnalysis: true,
-    });
+      clipSeconds: 60,
+    }, expect.any(AbortSignal));
     expect(api.thumbnailTruthAnalyse).not.toHaveBeenCalled();
     expect(await screen.findByText(/Me at the zoo · jawed/)).toBeInTheDocument();
     expect(screen.getByText('Translated from hi · Cloud Translation v3')).toBeInTheDocument();
+  });
+
+  it('offers clip lengths for a long video, shows progress, and can cancel', async () => {
+    status(true);
+    vi.mocked(api.thumbnailTruthYoutubePreview).mockResolvedValue({
+      video: {
+        videoId: 'hFZFjoX2cGg', title: 'Backyard Squirrel Maze', channel: 'Mark Rober', description: '',
+        canonicalUrl: 'https://www.youtube.com/watch?v=hFZFjoX2cGg', durationSec: 1300,
+      },
+      maxFullSeconds: 1200,
+    });
+    vi.mocked(api.thumbnailTruthAnalyseYoutube).mockImplementation((_, signal) => new Promise((_resolve, reject) => {
+      signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    render(<ThumbnailTruth />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Published YouTube link' }));
+    await userEvent.click(screen.getByRole('button', { name: /Squirrel Maze/ }));
+
+    expect(await screen.findByText('Backyard Squirrel Maze')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /First minute/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Whole video/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /First 5 minutes/ }));
+    await userEvent.click(screen.getByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: 'Verify platform integrity' }));
+
+    expect(api.thumbnailTruthAnalyseYoutube).toHaveBeenCalledWith(
+      expect.objectContaining({ clipSeconds: 300 }), expect.any(AbortSignal),
+    );
+    expect(screen.getByText(/Gemini watches the first 5:00/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Check cancelled');
+    expect(screen.getByRole('button', { name: 'Verify platform integrity' })).toBeEnabled();
   });
 
   it('suggests an honest thumbnail with Imagen only after consent on a flagged result', async () => {

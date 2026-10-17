@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from project_telos_api.config import get_settings
 from project_telos_api.main import create_app
 from project_telos_api.providers import reset_providers
+from project_telos_api.providers.gemini import generation_schema
 from project_telos_api.thumbnail_truth import (
     MAX_THUMBNAIL_BYTES, GhostEntityScan, SentimentScan, band_for, build_result, combine,
     ghost_tracker,
@@ -212,7 +213,8 @@ def test_live_analysis_runs_both_scans_with_json_config(live) -> None:
     for call in calls:
         assert call["config"]["response_mime_type"] == "application/json"
         assert call["config"]["response_json_schema"] in (
-            GhostEntityScan.model_json_schema(), SentimentScan.model_json_schema(),
+            generation_schema(GhostEntityScan.model_json_schema()),
+            generation_schema(SentimentScan.model_json_schema()),
         )
         assert "response_schema" not in call["config"]
         assert call["config"]["temperature"] == 0.1
@@ -350,7 +352,7 @@ def test_youtube_check_sends_the_real_thumbnail_and_public_video(linked) -> None
     assert result["videoProvided"] is True and result["source"] == "gemini"
     contents = calls[0]["contents"]
     serialized = json.dumps(contents)
-    assert len(contents) == 3 and contents[2] == {"file_data": {"file_uri": ZOO.canonicalUrl}}
+    assert len(contents) == 3 and contents[2] == {"file_data": {"file_uri": ZOO.canonicalUrl, "mime_type": "video/mp4"}}
     assert "public YouTube video" in serialized and "Me at the zoo" in serialized
     assert recorded and recorded[0]["kind"] == "thumbnail_truth" and recorded[0]["source"] == "youtube-link"
     assert recorded[0]["band"] == result["band"] and "title" not in recorded[0]
@@ -374,6 +376,58 @@ def test_youtube_check_rejects_long_videos(linked, monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr("project_telos_api.thumbnail_truth.resolve_link", lambda url, settings: long_video)
     response = client.post("/project-telos/thumbnail-truth/analyse-youtube", json=youtube_body())
     assert response.status_code == 422 and not calls
+
+
+def test_youtube_check_can_analyse_only_the_opening_of_a_long_video(linked, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, calls, _ = linked
+    long_video = ZOO.model_copy(update={"durationSec": 21 * 60.0})
+    monkeypatch.setattr("project_telos_api.thumbnail_truth.resolve_link", lambda url, settings: long_video)
+    response = client.post("/project-telos/thumbnail-truth/analyse-youtube", json=youtube_body(clipSeconds=60))
+    assert response.status_code == 200, response.text
+    assert response.json()["analysedWindowSec"] == 60
+    video_part = calls[0]["contents"][2]
+    assert video_part["video_metadata"] == {"start_offset": "0s", "end_offset": "60s"}
+    assert "first 60 seconds" in calls[0]["contents"][0]["text"]
+
+
+def test_youtube_clip_longer_than_the_video_analyses_the_whole_video(linked) -> None:
+    client, calls, _ = linked
+    response = client.post("/project-telos/thumbnail-truth/analyse-youtube", json=youtube_body(clipSeconds=60))
+    assert response.status_code == 200, response.text
+    assert response.json()["analysedWindowSec"] is None
+    assert "video_metadata" not in calls[0]["contents"][2]
+
+
+def test_a_stalled_scan_is_retried_once(linked, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _, _ = linked
+    attempts: list[str] = []
+    payloads = iter([json.dumps(ghost_payload()), json.dumps(sentiment_payload())])
+
+    class Deadline(Exception):
+        code = 504
+
+    def generate(**kwargs: Any) -> SimpleNamespace:
+        attempts.append(kwargs["config"]["system_instruction"])
+        if len(attempts) == 1:
+            raise Deadline("DEADLINE_EXCEEDED")
+        return SimpleNamespace(text=next(payloads))
+
+    @contextmanager
+    def fake_client(**_: Any):
+        yield SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+
+    monkeypatch.setattr("project_telos_api.thumbnail_truth.build_client", fake_client)
+    response = client.post("/project-telos/thumbnail-truth/analyse-youtube", json=youtube_body())
+    assert response.status_code == 200, response.text
+    assert len(attempts) == 3 and attempts[0] == attempts[1]
+
+
+def test_youtube_preview_returns_metadata_without_a_model_call(linked) -> None:
+    client, calls, _ = linked
+    response = client.post("/project-telos/thumbnail-truth/youtube-preview", json={"url": "https://youtu.be/jNQXAC9IVRw"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["video"]["durationSec"] == 19 and body["maxFullSeconds"] == 20 * 60 and not calls
 
 
 def test_non_english_drafts_are_translated_before_scanning(live, monkeypatch: pytest.MonkeyPatch) -> None:

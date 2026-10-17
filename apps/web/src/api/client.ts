@@ -10,6 +10,7 @@ import type {
   ThumbnailTruthResult,
   ThumbnailTruthSample,
   ThumbnailTruthStatus,
+  ThumbnailTruthYouTubePreview,
   ThumbnailTruthYouTubeRequest,
   YouTubeLinkResult,
   YouTubeStatus,
@@ -19,6 +20,15 @@ import type {
 } from './types';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+
+/** Fired when the API answers 401 because the access-code cookie is missing or expired. */
+export const ACCESS_LOCKED_EVENT = 'telos:access-locked';
+
+export interface AccessStatus {
+  required: boolean;
+  unlocked: boolean;
+  hint: string | null;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -39,6 +49,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     // The API returns {detail: "..."}; fall back to the status text if it does not.
     const body = await response.json().catch(() => null);
+    if (response.status === 401 && !path.startsWith('/access/')) {
+      window.dispatchEvent(new Event(ACCESS_LOCKED_EVENT));
+    }
     throw new ApiError(response.status, body?.detail ?? response.statusText);
   }
   if (response.status === 204) return undefined as T;
@@ -46,15 +59,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  accessStatus: () => request<AccessStatus>('/access/status'),
+  accessVerify: (code: string) => request<void>('/access/verify', {
+    method: 'POST', body: JSON.stringify({ code }),
+  }),
   thumbnailTruthStatus: () => request<ThumbnailTruthStatus>('/project-telos/thumbnail-truth/status'),
   thumbnailTruthSamples: () => request<ThumbnailTruthSample[]>('/project-telos/thumbnail-truth/samples'),
-  thumbnailTruthAnalyse: (submission: ThumbnailTruthRequest) =>
+  thumbnailTruthAnalyse: (submission: ThumbnailTruthRequest, signal?: AbortSignal) =>
     request<ThumbnailTruthResult>('/project-telos/thumbnail-truth/analyse', {
-      method: 'POST', body: JSON.stringify(submission),
+      method: 'POST', body: JSON.stringify(submission), signal,
     }),
-  thumbnailTruthAnalyseYoutube: (submission: ThumbnailTruthYouTubeRequest) =>
+  thumbnailTruthAnalyseYoutube: (submission: ThumbnailTruthYouTubeRequest, signal?: AbortSignal) =>
     request<ThumbnailTruthResult>('/project-telos/thumbnail-truth/analyse-youtube', {
-      method: 'POST', body: JSON.stringify(submission),
+      method: 'POST', body: JSON.stringify(submission), signal,
+    }),
+  thumbnailTruthYoutubePreview: (url: string, signal?: AbortSignal) =>
+    request<ThumbnailTruthYouTubePreview>('/project-telos/thumbnail-truth/youtube-preview', {
+      method: 'POST', body: JSON.stringify({ url }), signal,
     }),
   thumbnailTruthRedesign: (submission: ThumbnailRedesignRequest) =>
     request<ThumbnailRedesignResult>('/project-telos/thumbnail-truth/redesign', {

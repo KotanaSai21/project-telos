@@ -89,7 +89,8 @@ npm run build
 ## Documentation
 
 - [Deployment and Google integrations](docs/DEPLOYMENT.md) — one-service
-  Cloud Run deployment, secrets, optional Google services, verification, rollback.
+  Cloud Run deployment, continuous deployment from GitHub, secrets, optional Google
+  services, verification, rollback.
 - [Architecture and development reference](docs/ARCHITECTURE.md) — repository
   map, policy, media pipeline, tests, and limitations.
 - [Prototype blueprint](docs/PROJECT_TELOS_PROTOTYPE_IDEA.md) — product scope,

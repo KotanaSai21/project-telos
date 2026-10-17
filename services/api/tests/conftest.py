@@ -24,6 +24,8 @@ REQUIRED_ENV = {
     "PROJECT_TELOS_WEB_DIST": "",
     "GEMINI_API_KEY": "",
     "YOUTUBE_API_KEY": "",
+    # A developer's .env may lock the site; tests opt in to the gate explicitly.
+    "PROJECT_TELOS_ACCESS_CODE": "",
 }
 
 CLEARED_ENV = (

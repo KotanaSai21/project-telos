@@ -178,7 +178,7 @@ describe('YouTube discovery', () => {
     vi.mocked(api.youtubeLink).mockRejectedValue(new Error('Not a YouTube video URL'));
     render(<YouTubeDiscovery profile={profile} />);
     await screen.findByRole('heading', { name: video.title });
-    await userEvent.click(screen.getByRole('button', { name: 'Keyboard Cat' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keyboard Cat (0:55)' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Not a YouTube video URL');
     expect(screen.getAllByRole('article')).toHaveLength(1);
   });});

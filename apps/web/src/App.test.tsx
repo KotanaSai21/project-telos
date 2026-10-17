@@ -12,7 +12,7 @@ vi.mock('./api/client', () => ({
     projectTelosPush: vi.fn(), projectTelosOutcome: vi.fn(), projectTelosReceipt: vi.fn(),
     youtubeStatus: vi.fn(), youtubeSearch: vi.fn(), youtubeAnalyse: vi.fn(), youtubeLink: vi.fn(),
     thumbnailTruthStatus: vi.fn(), thumbnailTruthSamples: vi.fn(), thumbnailTruthAnalyse: vi.fn(),
-    thumbnailTruthAnalyseYoutube: vi.fn(), thumbnailTruthRedesign: vi.fn(),
+    thumbnailTruthAnalyseYoutube: vi.fn(), thumbnailTruthRedesign: vi.fn(), thumbnailTruthYoutubePreview: vi.fn(),
     viewerPreferences: vi.fn(),
   },
 }));
@@ -248,7 +248,7 @@ describe('Project Telos journey', () => {
     expect(screen.getByText('Paste a link · search needs YOUTUBE_API_KEY')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next scene' })).toBeInTheDocument();
     expect(api.youtubeSearch).not.toHaveBeenCalled();
-    await userEvent.click(await screen.findByRole('button', { name: 'Me at the zoo (19s)' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Me at the zoo (0:19)' }));
     expect(api.youtubeLink).toHaveBeenCalledWith(profile.id, 'https://www.youtube.com/watch?v=jNQXAC9IVRw');
     expect(await screen.findByRole('heading', { name: 'Me at the zoo' })).toBeInTheDocument();
   });

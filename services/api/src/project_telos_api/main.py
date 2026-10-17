@@ -12,12 +12,15 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from project_telos_api import __version__
+from project_telos_api.access import LOCKED_DETAIL, is_protected, is_unlocked
+from project_telos_api.access import router as access_router
 from project_telos_api.analytics import analytics_enabled
 from project_telos_api.config import Settings, get_settings
 from project_telos_api.contracts import SCHEMA_FILES
@@ -132,6 +135,12 @@ def create_app() -> FastAPI:
         response.headers[REQUEST_ID_HEADER] = request_id
         return response
 
+    @app.middleware("http")
+    async def require_access_code(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if is_protected(request.url.path) and not is_unlocked(request, settings):
+            return JSONResponse({"detail": LOCKED_DETAIL}, status_code=401)
+        return await call_next(request)
+
     @app.get("/health", response_model=HealthResponse, tags=["system"])
     async def health() -> HealthResponse:
         """Reports liveness, build version, and which contracts are enforced."""
@@ -146,6 +155,7 @@ def create_app() -> FastAPI:
             integrations=integrations(settings),
         )
 
+    app.include_router(access_router)
     app.include_router(router)
     app.include_router(project_telos_router)
     app.include_router(youtube_router)

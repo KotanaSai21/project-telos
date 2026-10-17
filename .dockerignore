@@ -12,3 +12,8 @@
 corpus/**/*.mp4
 docs
 jobs
+**/*.tsbuildinfo
+**/.ruff_cache
+.github
+.claude
+cloudbuild.yaml

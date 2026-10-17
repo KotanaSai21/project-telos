@@ -294,7 +294,7 @@ def audit_video(video: Video, settings: Settings) -> Audit:
                         "mime_type": "image/jpeg",
                         "data": base64.b64encode(thumbnail).decode("ascii"),
                     }},
-                    {"file_data": {"file_uri": video.canonicalUrl}},
+                    {"file_data": {"file_uri": video.canonicalUrl, "mime_type": "video/mp4"}},
                 ],
                 config={
                     "system_instruction": AUDIT_PROMPT,

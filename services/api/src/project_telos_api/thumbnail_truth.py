@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from project_telos_api.analytics import analytics_enabled, record_verdict, verdict_row
 from project_telos_api.config import Settings, get_settings
 from project_telos_api.logging_setup import get_logger
-from project_telos_api.providers.gemini import analysis_failure, build_client
+from project_telos_api.providers.gemini import analysis_failure, build_client, generation_schema
 from project_telos_api.translation import TranslationOutcome, translate_fields, translation_enabled
 from project_telos_api.youtube_discovery import Video, fetch_thumbnail, resolve_link
 
@@ -87,6 +87,7 @@ Steps:
 5. List promised_topics and actual_topics. Add concise evidence comparing the promise
    with the video or transcript. Only include timestamps observed in the video or supplied
    transcript; use null startSec/endSec when no timestamp is available. Never invent a time.
+   Timestamp ranges need endSec > startSec; for a single moment, use a one-second range.
 
 Set evidence_status to "insufficient" when neither a video nor a meaningful transcript is
 available, or when the thumbnail cannot be read.
@@ -217,11 +218,26 @@ class YouTubeCheckRequest(BaseModel):
     transcript: str = Field("", max_length=20_000)
     region: str = Field("", max_length=60)
     consentToGoogleAnalysis: bool
+    # Analyse only the opening N seconds; None means the whole video.
+    clipSeconds: int | None = Field(None, ge=10, le=20 * 60)
 
     @field_validator("url", "transcript", "region")
     @classmethod
     def _strip(cls, value: str) -> str:
         return value.strip()
+
+
+class YouTubePreviewRequest(BaseModel):
+    """Resolve a link to its public metadata before anything is sent to Gemini."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(min_length=1, max_length=2048)
+
+
+class YouTubePreview(BaseModel):
+    video: Video
+    maxFullSeconds: int
 
 
 class RedesignRequest(BaseModel):
@@ -286,6 +302,8 @@ class ThumbnailTruthResult(BaseModel):
     note: str
     translation: TranslationOutcome | None = None
     youtubeVideo: Video | None = None
+    # Set when only the opening seconds of a linked video were analysed.
+    analysedWindowSec: float | None = None
     promisedTopics: list[str] = Field(default_factory=list)
     actualTopics: list[str] = Field(default_factory=list)
     evidence: list[CreatorEvidence] = Field(default_factory=list)
@@ -451,6 +469,9 @@ def build_submission(
     return submission
 
 
+SCAN_TIMEOUT_MS: Final[int] = 60_000
+
+
 def run_scans(
     submission: dict[str, Any], thumbnail: bytes, thumbnail_mime: str,
     video_part: dict[str, Any] | None, settings: Settings,
@@ -468,21 +489,32 @@ def run_scans(
         return {
             "system_instruction": prompt,
             "response_mime_type": "application/json",
-            "response_json_schema": schema.model_json_schema(),
+            # Structural schema only: length/range keywords make constrained decoding far slower.
+            # The strict Pydantic model still validates every response below.
+            "response_json_schema": generation_schema(schema.model_json_schema()),
             "temperature": 0.1,
-            "http_options": {"timeout": 120_000},
+            "http_options": {"timeout": SCAN_TIMEOUT_MS},
         }
+
+    def generate(client: Any, prompt: str, schema: type[BaseModel]) -> Any:
+        # A scan normally takes ~10-15 s; an occasional request stalls until the deadline.
+        # Retry a stalled or 5xx attempt once rather than making the creator wait twice as long.
+        for attempt in range(2):
+            try:
+                return client.models.generate_content(
+                    model=settings.gemini_model, contents=parts, config=config(prompt, schema),
+                )
+            except Exception as exc:
+                retryable = getattr(exc, "code", None) in (500, 502, 503, 504) or isinstance(exc, TimeoutError)
+                if attempt or not retryable:
+                    raise
+                get_logger().warning("thumbnail_truth.scan_retry", extra={"upstream_status": getattr(exc, "code", None)})
+        raise AssertionError("unreachable")
 
     try:
         with build_client(**settings.ai_client_options) as client:
-            ghost_response = client.models.generate_content(
-                model=settings.gemini_model, contents=parts,
-                config=config(GHOST_ENTITY_PROMPT, GhostEntityScan),
-            )
-            sentiment_response = client.models.generate_content(
-                model=settings.gemini_model, contents=parts,
-                config=config(SENTIMENT_PROMPT, SentimentScan),
-            )
+            ghost_response = generate(client, GHOST_ENTITY_PROMPT, GhostEntityScan)
+            sentiment_response = generate(client, SENTIMENT_PROMPT, SentimentScan)
         return (
             GhostEntityScan.model_validate_json(ghost_response.text),
             SentimentScan.model_validate_json(sentiment_response.text),
@@ -714,8 +746,13 @@ def analyse_youtube(
     if not live_configured(settings):
         raise HTTPException(503, LIVE_REQUIRED)
     video = resolve_link(request.url, settings)
-    if video.durationSec is not None and video.durationSec > MAX_LINKED_VIDEO_SECONDS:
-        raise HTTPException(422, "This prototype checks public videos up to 20 minutes long.")
+    clip = request.clipSeconds
+    if clip is not None and video.durationSec is not None and clip >= video.durationSec:
+        clip = None  # The clip already covers the whole video.
+    if clip is None and video.durationSec is not None and video.durationSec > MAX_LINKED_VIDEO_SECONDS:
+        raise HTTPException(
+            422, "This prototype checks whole videos up to 20 minutes long. Analyse the opening minutes instead.",
+        )
     thumbnail = fetch_thumbnail(video.videoId)
     english, translation = translated(
         settings, title=video.title, description=video.description, transcript=request.transcript,
@@ -724,18 +761,33 @@ def analyse_youtube(
         title=video.title, description=video.description, transcript=request.transcript,
         region=request.region, video_attached=True, english=english, source="public YouTube video",
     )
-    ghost, sentiment = run_scans(
-        submission, thumbnail, "image/jpeg", {"file_data": {"file_uri": video.canonicalUrl}}, settings,
-    )
-    if video.durationSec is not None and any(
-        row.endSec is not None and row.endSec > video.durationSec for row in ghost.evidence
+    video_part: dict[str, Any] = {"file_data": {"file_uri": video.canonicalUrl, "mime_type": "video/mp4"}}
+    if clip is not None:
+        video_part["video_metadata"] = {"start_offset": "0s", "end_offset": f"{clip}s"}
+        submission["analysedWindow"] = (
+            f"Only the first {clip} seconds of the video are attached. Content after that was not "
+            "observed; do not treat it as absent."
+        )
+    ghost, sentiment = run_scans(submission, thumbnail, "image/jpeg", video_part, settings)
+    timeline_end = clip if clip is not None else video.durationSec
+    if timeline_end is not None and any(
+        row.endSec is not None and row.endSec > timeline_end for row in ghost.evidence
     ):
         get_logger().error("thumbnail_truth.invalid_timestamps")
         raise HTTPException(502, "Gemini returned evidence outside the video timeline; no verdict was produced.")
     result = build_result(
         ghost, sentiment, source="gemini", model=settings.gemini_model, video_provided=True,
-    ).model_copy(update={"translation": translation, "youtubeVideo": video})
+    ).model_copy(update={
+        "translation": translation, "youtubeVideo": video,
+        "analysedWindowSec": float(clip) if clip is not None else None,
+    })
     return finish(result, request.region, settings, background)
+
+
+@router.post("/youtube-preview", response_model=YouTubePreview)
+def youtube_preview(request: YouTubePreviewRequest, settings: Settings = Depends(get_settings)) -> YouTubePreview:
+    """Public metadata only (title, channel, duration). Nothing is sent to Gemini."""
+    return YouTubePreview(video=resolve_link(request.url, settings), maxFullSeconds=MAX_LINKED_VIDEO_SECONDS)
 
 
 def redesign_prompt(request: RedesignRequest) -> str:

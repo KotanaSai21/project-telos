@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = Field(None, alias="GEMINI_API_KEY")
     youtube_api_key: SecretStr | None = Field(None, alias="YOUTUBE_API_KEY")
 
+    # Shared access code for the whole site. Unset means the site is open.
+    access_code: SecretStr | None = Field(None, alias="PROJECT_TELOS_ACCESS_CODE")
+    access_hint: str = Field("", alias="PROJECT_TELOS_ACCESS_HINT", max_length=200)
+    access_hint_enabled: bool = Field(False, alias="PROJECT_TELOS_ACCESS_HINT_ENABLED")
+
     google_cloud_project: str | None = Field(None, alias="GOOGLE_CLOUD_PROJECT")
     google_cloud_location: str = Field("us-central1", alias="GOOGLE_CLOUD_LOCATION", min_length=1)
 
@@ -89,6 +94,7 @@ class Settings(BaseSettings):
     @field_validator(
         "gemini_api_key",
         "youtube_api_key",
+        "access_code",
         "google_cloud_project",
         "media_bucket",
         "bigquery_dataset",
