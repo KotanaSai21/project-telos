@@ -1,0 +1,74 @@
+{
+  "$comment": "Seeded profiles for demo determinism. Switching between them on stage must produce different, documented outcomes on the same corpus.",
+  "presets": [
+    {
+      "id": "preset-work",
+      "name": "Work",
+      "context": "work",
+      "avoid": [
+        { "category": "sexual", "intensityThreshold": "none" },
+        { "category": "violence", "intensityThreshold": "mild" },
+        { "category": "graphic_injury", "intensityThreshold": "mild" },
+        { "category": "gambling", "intensityThreshold": "none" }
+      ],
+      "allowContextually": ["medical_education", "news_reporting"],
+      "interests": ["Indian classical music", "aviation"],
+      "language": "en",
+      "narrate": false,
+      "version": 1,
+      "updatedAt": "2026-09-30T09:00:00Z"
+    },
+    {
+      "id": "preset-family",
+      "name": "Family",
+      "context": "family",
+      "avoid": [
+        { "category": "sexual", "intensityThreshold": "none" },
+        { "category": "violence", "intensityThreshold": "none" },
+        { "category": "graphic_injury", "intensityThreshold": "none" },
+        { "category": "gambling", "intensityThreshold": "none" },
+        { "category": "alcohol", "intensityThreshold": "none" }
+      ],
+      "allowContextually": [],
+      "interests": ["cooking", "music"],
+      "language": "en",
+      "narrate": false,
+      "version": 1,
+      "updatedAt": "2026-09-30T09:00:00Z"
+    },
+    {
+      "id": "preset-learning",
+      "name": "Learning",
+      "context": "learning",
+      "avoid": [
+        { "category": "sexual", "intensityThreshold": "suggestive" },
+        { "category": "gambling", "intensityThreshold": "none" }
+      ],
+      "allowContextually": ["medical_education", "news_reporting", "art_classical"],
+      "interests": ["aviation", "anatomy"],
+      "language": "en",
+      "narrate": true,
+      "version": 1,
+      "updatedAt": "2026-09-30T09:00:00Z"
+    },
+    {
+      "id": "preset-recovery",
+      "name": "Personal",
+      "context": "personal",
+      "avoid": [
+        { "category": "sexual", "intensityThreshold": "none" },
+        {
+          "category": "gambling",
+          "intensityThreshold": "none",
+          "reason": "I am in recovery from a gambling addiction"
+        }
+      ],
+      "allowContextually": ["medical_education", "news_reporting"],
+      "interests": ["aviation"],
+      "language": "en",
+      "narrate": false,
+      "version": 1,
+      "updatedAt": "2026-09-30T09:00:00Z"
+    }
+  ]
+}

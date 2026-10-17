@@ -1,0 +1,16 @@
+{
+  "id": "profile-work-demo",
+  "name": "Work laptop",
+  "context": "work",
+  "avoid": [
+    { "category": "sexual", "intensityThreshold": "none" },
+    { "category": "graphic_injury", "intensityThreshold": "mild" },
+    { "category": "gambling", "intensityThreshold": "none", "reason": "I am in recovery" }
+  ],
+  "allowContextually": ["medical_education", "news_reporting"],
+  "interests": ["aviation", "Indian classical music"],
+  "language": "en",
+  "narrate": false,
+  "version": 1,
+  "updatedAt": "2026-09-30T09:00:00Z"
+}

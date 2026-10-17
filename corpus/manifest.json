@@ -1,0 +1,103 @@
+{
+  "$comment": "Demo corpus. Every asset is synthetic: colour-block video with scripted switch points and generated cards. Switch timestamps are exact by construction, which is what makes verification check V2 provable. No real explicit material is used or stored.",
+  "version": 1,
+  "generatedBy": "jobs/precompute",
+  "assets": [
+    {
+      "id": "cooking-clean",
+      "title": "One-pan garlic noodles",
+      "kind": "video",
+      "durationSec": 32,
+      "assetHash": "0262dff2c1d813ce",
+      "groundTruth": {
+        "switchSec": null,
+        "expectedUnderWorkProfile": "allow"
+      },
+      "note": "Establishes that ordinary content passes instantly and invisibly."
+    },
+    {
+      "id": "cooking-switch",
+      "title": "One-pan garlic noodles (bait)",
+      "kind": "video",
+      "durationSec": 47,
+      "assetHash": "dbf3c291693c2198",
+      "groundTruth": {
+        "switchSec": 14,
+        "expectedUnderWorkProfile": "hold"
+      },
+      "note": "The 0:14 moment. Opens as cooking, cuts to explicit content, returns. Bait pattern."
+    },
+    {
+      "id": "news-graphic",
+      "title": "Aftermath of the M4 pile-up",
+      "kind": "video",
+      "durationSec": 62,
+      "assetHash": "b89eb57675e3c335",
+      "groundTruth": {
+        "switchSec": null,
+        "expectedUnderWorkProfile": "reframe"
+      },
+      "note": "Journalism worth keeping. The story survives; the imagery does not."
+    },
+    {
+      "id": "anatomy-lesson",
+      "title": "Surface anatomy of the shoulder",
+      "kind": "video",
+      "durationSec": 55,
+      "assetHash": "e1dec5d8d1b0c8ea",
+      "groundTruth": {
+        "switchSec": null,
+        "expectedUnderWorkProfile": "allow"
+      },
+      "note": "The false-positive test. A keyword filter destroys this; Project Telos admits it."
+    },
+    {
+      "id": "gambling-promo",
+      "title": "Double your first deposit - 60 seconds left",
+      "kind": "video",
+      "durationSec": 20,
+      "assetHash": "a2b2a2e34c477059",
+      "groundTruth": {
+        "switchSec": null,
+        "expectedUnderWorkProfile": "hold"
+      },
+      "note": "Whole-asset boundary. Countdown urgency marks engineered pacing."
+    },
+    {
+      "id": "aviation-approach",
+      "title": "Crosswind landing at Madeira",
+      "kind": "video",
+      "durationSec": 41,
+      "assetHash": "6470a3d20a0cd08e",
+      "groundTruth": {
+        "switchSec": null,
+        "expectedUnderWorkProfile": "allow"
+      },
+      "note": "Substitution pool. Matches the declared aviation interest."
+    },
+    {
+      "id": "classical-music",
+      "title": "Raga Yaman, evening performance",
+      "kind": "video",
+      "durationSec": 96,
+      "assetHash": "8cbfca23cf5473c8",
+      "groundTruth": {
+        "switchSec": null,
+        "expectedUnderWorkProfile": "allow"
+      },
+      "note": "Substitution pool. Matches the declared music interest."
+    },
+    {
+      "id": "synthetic-intimate",
+      "title": "Unsolicited direct message",
+      "kind": "image",
+      "durationSec": 0,
+      "assetHash": "19d3f8c2a604b7e5",
+      "groundTruth": {
+        "switchSec": null,
+        "expectedUnderWorkProfile": "quarantine"
+      },
+      "note": "Synthetic placeholder only. Exercises the quarantine path; no real imagery exists."
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-telos.dev/schemas/consent-profile.json",
+  "title": "ConsentProfile",
+  "description": "What a viewer declared they do and do not want to experience. Written by the user, never inferred from behaviour.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "context", "avoid", "allowContextually", "interests", "language", "narrate", "version", "updatedAt"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "context": {
+      "type": "string",
+      "enum": ["work", "family", "learning", "personal", "commute"]
+    },
+    "avoid": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/boundary" }
+    },
+    "allowContextually": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/category" },
+      "description": "Categories admitted despite overlapping an avoid rule, because context makes them legitimate."
+    },
+    "interests": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "type": "string", "minLength": 1, "maxLength": 80 },
+      "description": "Positive signals. Drive ranking and substitution."
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$",
+      "description": "BCP-47 language subtag used for translated adaptations."
+    },
+    "narrate": { "type": "boolean" },
+    "version": { "type": "integer", "minimum": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "sexual",
+        "violence",
+        "graphic_injury",
+        "gambling",
+        "alcohol",
+        "self_harm",
+        "body_image",
+        "hate",
+        "misinformation",
+        "medical_education",
+        "news_reporting",
+        "art_classical",
+        "advertising"
+      ]
+    },
+    "intensity": {
+      "type": "string",
+      "enum": ["none", "mild", "suggestive", "strong", "explicit"],
+      "description": "Ordered scale. A boundary admits content at or below its threshold."
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "intensityThreshold"],
+      "properties": {
+        "category": { "$ref": "#/$defs/category" },
+        "intensityThreshold": { "$ref": "#/$defs/intensity" },
+        "reason": {
+          "type": "string",
+          "maxLength": 280,
+          "description": "Optional user-stated reason. Widens reasoning; never treated as a diagnosis."
+        }
+      }
+    }
+  }
+}

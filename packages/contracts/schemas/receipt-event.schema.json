@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-telos.dev/schemas/receipt-event.json",
+  "title": "ReceiptEvent",
+  "description": "One line in the Content Receipt. Records what was decided, not the media itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sessionId", "assetHash", "action", "revealedByUser", "timestamp"],
+  "properties": {
+    "sessionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "assetHash": { "type": "string", "pattern": "^[a-f0-9]{16,64}$" },
+    "action": {
+      "type": "string",
+      "enum": ["allow", "soften", "summarize", "reframe", "replace", "hold", "quarantine"]
+    },
+    "revealedByUser": {
+      "type": "boolean",
+      "description": "True when the viewer overrode a held item. The deliberate-consent signal."
+    },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

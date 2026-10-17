@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+.env
+.env.local
+*-service-account.json
+*.pem
+*.key
+
+.DS_Store
+Thumbs.db
+
+packages/contracts/src/generated/
+
+# Runtime data written by the local provider: profiles, decisions, receipt events.
+.local/

@@ -1,0 +1,24 @@
+{
+  "assetHash": "0262dff2c1d813ce",
+  "durationSec": 32.0,
+  "segments": [
+    {
+      "startSec": 0.0,
+      "endSec": 32.0,
+      "labels": [
+        {
+          "category": "cooking",
+          "intensity": "none"
+        }
+      ],
+      "confidence": 0.95
+    }
+  ],
+  "signals": {
+    "baitPattern": false,
+    "syntheticSuspected": false,
+    "engineeredPacing": false
+  },
+  "modelVersion": "palette/2026-09-30",
+  "computedAt": "2026-09-30T16:43:42Z"
+}

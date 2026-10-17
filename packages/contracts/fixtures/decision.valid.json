@@ -1,0 +1,10 @@
+{
+  "assetHash": "b7e1c4a90f3d2e88",
+  "profileId": "profile-work-demo",
+  "action": "soften",
+  "affectedRanges": [{ "startSec": 14, "endSec": 21 }],
+  "reason": "Explicit content between 0:14 and 0:21. Your Work profile asks to avoid it, so that section is skipped and the rest plays.",
+  "confidence": 0.94,
+  "alternatives": ["hold", "replace"],
+  "createdAt": "2026-09-30T09:05:01Z"
+}

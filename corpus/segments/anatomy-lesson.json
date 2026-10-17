@@ -1,0 +1,28 @@
+{
+  "assetHash": "e1dec5d8d1b0c8ea",
+  "durationSec": 55.0,
+  "segments": [
+    {
+      "startSec": 0.0,
+      "endSec": 55.0,
+      "labels": [
+        {
+          "category": "medical_education",
+          "intensity": "none"
+        },
+        {
+          "category": "sexual",
+          "intensity": "strong"
+        }
+      ],
+      "confidence": 0.95
+    }
+  ],
+  "signals": {
+    "baitPattern": false,
+    "syntheticSuspected": false,
+    "engineeredPacing": false
+  },
+  "modelVersion": "palette/2026-09-30",
+  "computedAt": "2026-09-30T16:43:43Z"
+}

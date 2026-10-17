@@ -1,0 +1,46 @@
+{
+  "assetHash": "dbf3c291693c2198",
+  "durationSec": 47.0,
+  "segments": [
+    {
+      "startSec": 0.0,
+      "endSec": 14.0,
+      "labels": [
+        {
+          "category": "cooking",
+          "intensity": "none"
+        }
+      ],
+      "confidence": 0.95
+    },
+    {
+      "startSec": 14.0,
+      "endSec": 21.0,
+      "labels": [
+        {
+          "category": "sexual",
+          "intensity": "explicit"
+        }
+      ],
+      "confidence": 0.95
+    },
+    {
+      "startSec": 21.0,
+      "endSec": 47.0,
+      "labels": [
+        {
+          "category": "cooking",
+          "intensity": "none"
+        }
+      ],
+      "confidence": 0.95
+    }
+  ],
+  "signals": {
+    "baitPattern": true,
+    "syntheticSuspected": false,
+    "engineeredPacing": false
+  },
+  "modelVersion": "palette/2026-09-30",
+  "computedAt": "2026-09-30T16:43:42Z"
+}

@@ -1,0 +1,50 @@
+{
+  "assetHash": "b89eb57675e3c335",
+  "durationSec": 62.0,
+  "segments": [
+    {
+      "startSec": 0.0,
+      "endSec": 19.0,
+      "labels": [
+        {
+          "category": "news_reporting",
+          "intensity": "none"
+        }
+      ],
+      "confidence": 0.95
+    },
+    {
+      "startSec": 19.0,
+      "endSec": 34.0,
+      "labels": [
+        {
+          "category": "news_reporting",
+          "intensity": "none"
+        },
+        {
+          "category": "graphic_injury",
+          "intensity": "strong"
+        }
+      ],
+      "confidence": 0.95
+    },
+    {
+      "startSec": 34.0,
+      "endSec": 62.0,
+      "labels": [
+        {
+          "category": "news_reporting",
+          "intensity": "none"
+        }
+      ],
+      "confidence": 0.95
+    }
+  ],
+  "signals": {
+    "baitPattern": false,
+    "syntheticSuspected": false,
+    "engineeredPacing": false
+  },
+  "modelVersion": "palette/2026-09-30",
+  "computedAt": "2026-09-30T16:43:42Z"
+}

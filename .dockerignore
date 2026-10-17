@@ -1,0 +1,14 @@
+.git
+.venv
+.local
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/__pycache__
+**/*.egg-info
+**/.pytest_cache
+corpus/**/*.mp4
+docs
+jobs

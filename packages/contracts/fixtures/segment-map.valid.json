@@ -1,0 +1,31 @@
+{
+  "assetHash": "b7e1c4a90f3d2e88",
+  "durationSec": 47,
+  "segments": [
+    {
+      "startSec": 0,
+      "endSec": 13,
+      "labels": [{ "category": "cooking", "intensity": "none" }],
+      "confidence": 0.97
+    },
+    {
+      "startSec": 14,
+      "endSec": 21,
+      "labels": [{ "category": "sexual", "intensity": "explicit" }],
+      "confidence": 0.94
+    },
+    {
+      "startSec": 22,
+      "endSec": 47,
+      "labels": [{ "category": "cooking", "intensity": "none" }],
+      "confidence": 0.96
+    }
+  ],
+  "signals": {
+    "baitPattern": true,
+    "syntheticSuspected": false,
+    "engineeredPacing": false
+  },
+  "modelVersion": "gemini-2.5-flash/2026-09-30",
+  "computedAt": "2026-09-30T09:05:00Z"
+}

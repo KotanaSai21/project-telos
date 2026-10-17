@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-telos.dev/schemas/segment-map.json",
+  "title": "SegmentMap",
+  "description": "What a piece of media contains, as a timeline. Holds no user data, so it can be reused across viewers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assetHash", "durationSec", "segments", "signals", "modelVersion", "computedAt"],
+  "properties": {
+    "assetHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16,64}$",
+      "description": "Perceptual hash. The cache key."
+    },
+    "durationSec": { "type": "number", "minimum": 0 },
+    "segments": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/segment" }
+    },
+    "signals": { "$ref": "#/$defs/signals" },
+    "modelVersion": { "type": "string", "minLength": 1 },
+    "computedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startSec", "endSec", "labels", "confidence"],
+      "properties": {
+        "startSec": { "type": "number", "minimum": 0 },
+        "endSec": { "type": "number", "minimum": 0 },
+        "labels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/label" }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "intensity"],
+      "properties": {
+        "category": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "intensity": {
+          "type": "string",
+          "enum": ["none", "mild", "suggestive", "strong", "explicit"]
+        }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baitPattern", "syntheticSuspected", "engineeredPacing"],
+      "properties": {
+        "baitPattern": {
+          "type": "boolean",
+          "description": "Thumbnail or opening does not match the body of the asset."
+        },
+        "syntheticSuspected": { "type": "boolean" },
+        "engineeredPacing": {
+          "type": "boolean",
+          "description": "Cut rate, countdown urgency, or cliffhanger structure above the norm for the format."
+        }
+      }
+    }
+  }
+}

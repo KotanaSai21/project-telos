@@ -1,0 +1,23 @@
+{
+  "name": "project-telos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Project Telos - AI that understands what you want to experience",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@project-telos/web",
+    "build": "npm run build --workspace=@project-telos/contracts && npm run build --workspace=@project-telos/web",
+    "generate:types": "npm run generate --workspace=@project-telos/contracts",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

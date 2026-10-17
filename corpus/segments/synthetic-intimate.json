@@ -1,0 +1,15 @@
+{
+  "assetHash": "19d3f8c2a604b7e5",
+  "durationSec": 0,
+  "segments": [
+    {
+      "startSec": 0,
+      "endSec": 0,
+      "labels": [{ "category": "sexual", "intensity": "explicit" }],
+      "confidence": 0.88
+    }
+  ],
+  "signals": { "baitPattern": false, "syntheticSuspected": true, "engineeredPacing": false },
+  "modelVersion": "fixture/2026-09-30",
+  "computedAt": "2026-09-30T09:00:00Z"
+}
