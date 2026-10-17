@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api/client';
-import { SAMPLE_YOUTUBE_LINKS } from '../api/samples';
+import { viewerSampleGroups } from '../api/samples';
 import type { ConsentProfile, YouTubeAudit, YouTubeCandidate, YouTubeSearch, YouTubeStatus } from '../api/types';
 import { formatTimecode } from '../playback/gate';
+import { YouTubePlayer } from './YouTubePlayer';
 
 function mergeLinked(current: YouTubeSearch | null, profileId: string, video: YouTubeCandidate): YouTubeSearch {
   const others = (current?.videos ?? []).filter((row) => row.videoId !== video.videoId);
@@ -26,11 +27,13 @@ export function YouTubeDiscovery({ profile }: { profile: ConsentProfile }) {
   const [approveAnalysis, setApproveAnalysis] = useState(false);
   const [approveOverride, setApproveOverride] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [previewing, setPreviewing] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [link, setLink] = useState('');
   const [linking, setLinking] = useState(false);
   const mounted = useRef(true);
   const pendingAnalysis = useRef(false);
+  const sampleGroups = useMemo(() => viewerSampleGroups(profile), [profile]);
 
   useEffect(() => {
     mounted.current = true;
@@ -138,11 +141,20 @@ export function YouTubeDiscovery({ profile }: { profile: ConsentProfile }) {
             {linking ? 'Adding...' : 'Add to candidates'}
           </button>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-slate-500">Try a sample:</span>
-          {SAMPLE_YOUTUBE_LINKS.map((sample) => <button key={sample.url} type="button"
-            className="project-telos-pill hover:text-teal-200" disabled={linking}
-            onClick={() => void addLink(sample.url)}>{sample.label}</button>)}
+        <div className="mt-3 grid gap-3 text-xs">
+          <span className="text-slate-500">Try a sample, then analyse it to see how it compares with your intent:</span>
+          {sampleGroups.map((group) => (
+            <div key={group.title} role="group" aria-label={`Samples: ${group.title}`}>
+              <p className="font-medium text-slate-300">{group.title}
+                <span className="ml-2 font-normal text-slate-500">{group.expectation}</span>
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {group.links.map((sample) => <button key={sample.url} type="button"
+                  className="project-telos-pill hover:text-teal-200" disabled={linking}
+                  onClick={() => void addLink(sample.url)}>{sample.label}</button>)}
+              </div>
+            </div>
+          ))}
         </div>
         {status && !status.searchConfigured && <p className="mt-2 text-xs leading-5 text-slate-500">
           Pasted links use YouTube's public oEmbed metadata. Analysing them also needs YOUTUBE_API_KEY
@@ -159,8 +171,8 @@ export function YouTubeDiscovery({ profile }: { profile: ConsentProfile }) {
           <label className="mt-4 flex items-start gap-3 rounded-lg bg-slate-800/50 p-3 text-xs leading-6 text-slate-300">
             <input type="checkbox" checked={approveAnalysis} disabled={analysing !== null}
               onChange={(event) => setApproveAnalysis(event.target.checked)} className="mt-1.5" />
-            I agree to send the selected public video's title, thumbnail, and URL to Google Gemini for analysis.
-            Project Telos applies my boundaries locally; it does not send my boundary reasons in this audit.
+            I agree to send the selected public video's title, thumbnail, and URL, plus my chosen topics, to Google
+            Gemini for analysis. Project Telos applies my boundaries locally; it does not send my boundary reasons in this audit.
           </label>
           <div className="youtube-candidate-feed mt-4" role="region" aria-label="YouTube candidates from your interests" tabIndex={0}>
             {search.videos.map((video, index) => <article key={video.videoId}
@@ -175,6 +187,17 @@ export function YouTubeDiscovery({ profile }: { profile: ConsentProfile }) {
                 onClick={() => void analyse(video.videoId)}>
                 {analysing === video.videoId ? 'Gemini is analysing...' : `Analyse: ${video.title}`}
               </button>
+              <button type="button" className="project-telos-button secondary mt-2"
+                aria-pressed={previewing === video.videoId}
+                onClick={() => setPreviewing((current) => (current === video.videoId ? null : video.videoId))}>
+                {previewing === video.videoId ? 'Close preview' : 'Preview (not checked)'}
+              </button>
+              {previewing === video.videoId && <div className="mt-3">
+                <p className="mb-2 text-[11px] leading-5 text-amber-200">
+                  Not checked against your boundaries yet. Analyse it first if you want Project Telos to look before you watch.
+                </p>
+                <YouTubePlayer videoId={video.videoId} title={video.title} />
+              </div>}
             </article>)}
           </div>
         </>}
@@ -190,6 +213,10 @@ export function YouTubeDiscovery({ profile }: { profile: ConsentProfile }) {
           </span>
         </header>
         <p className="mt-3 text-xs text-slate-400">{result.analysedBy} · {new Date(result.analysedAt).toLocaleString()}</p>
+        {!!result.topicMatch?.judgedInterests?.length && <p className="mt-2 text-xs text-slate-400">
+          Matched by meaning, not exact words: {result.topicMatch.judgedInterests.join(', ')}
+          {result.topicMatch.topics.length > 0 && ` (observed: ${result.topicMatch.topics.slice(0, 4).join(', ')})`}
+        </p>}
         <p className="mt-3 text-sm leading-6 text-slate-300">
           {result.topicMatch?.status === 'off-topic'
             ? 'The observed video topics do not match the topics you selected.'

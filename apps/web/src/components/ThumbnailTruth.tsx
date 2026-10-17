@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { api } from '../api/client';
 import { SAMPLE_YOUTUBE_LINKS } from '../api/samples';
 import { formatTimecode } from '../playback/gate';
+import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import type {
   MediaUpload,
   ThumbnailRedesignResult,
@@ -157,6 +158,9 @@ function ClipPicker({ preview, loading, clip, disabled, onClip }: {
   preview: ThumbnailTruthYouTubePreview | null; loading: boolean; clip: Clip; disabled: boolean;
   onClip: (clip: Clip) => void;
 }) {
+  const [watching, setWatching] = useState(false);
+  const videoId = preview?.video.videoId;
+  useEffect(() => setWatching(false), [videoId]);
   if (loading) return <p className="tt-wide tt-muted" role="status">Looking up the video…</p>;
   if (!preview) return null;
   const { video, maxFullSeconds } = preview;
@@ -183,8 +187,12 @@ function ClipPicker({ preview, loading, clip, disabled, onClip }: {
           <span className="tt-muted">
             {video.channel}{duration !== null ? ` · ${formatTimecode(duration)}` : ' · length unknown'}
           </span>
+          <button type="button" className="tt-chip" aria-pressed={watching} onClick={() => setWatching((on) => !on)}>
+            {watching ? 'Hide player' : '▶ Watch here'}
+          </button>
         </div>
       </div>
+      {watching && <YouTubePlayer videoId={video.videoId} title={video.title} />}
       {options.length > 1 && (
         <div className="tt-mode tt-clip-options" role="group" aria-label="How much of the video to analyse">
           {options.map((option) => (
@@ -206,6 +214,14 @@ function ClipPicker({ preview, loading, clip, disabled, onClip }: {
 
 function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
   const ghosts = result.ghostTracker.filter((item) => item.status === 'ghost').length;
+  const player = useRef<YouTubePlayerHandle>(null);
+  const video = result.youtubeVideo;
+
+  function jumpTo(seconds: number) {
+    player.current?.seek(seconds);
+    player.current?.play();
+  }
+
   return (
     <section className="tt-results" aria-labelledby="tt-results-title" aria-live="polite">
       <div className="tt-results-head">
@@ -237,6 +253,13 @@ function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
         </div>
       )}
 
+      {video && (
+        <div className="tt-result-player">
+          <YouTubePlayer ref={player} videoId={video.videoId} title={video.title} />
+          <p className="tt-muted">Select a timestamp below to jump to that moment.</p>
+        </div>
+      )}
+
       <div className="tt-score-row">
         <RiskGauge result={result} />
         <div>
@@ -260,8 +283,14 @@ function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
           </dl>
           {result.evidence?.length ? <ul className="tt-evidence">
             {result.evidence.map((row, index) => <li key={index}>
-              <strong>{row.startSec !== null && row.endSec !== null
-                ? `${formatTimecode(row.startSec)}–${formatTimecode(row.endSec)}` : 'No timestamp supplied'}</strong>
+              {row.startSec !== null && row.endSec !== null ? (
+                video ? (
+                  <button type="button" className="tt-timestamp" onClick={() => jumpTo(row.startSec!)}
+                    aria-label={`Play from ${formatTimecode(row.startSec)}`}>
+                    ▶ {formatTimecode(row.startSec)}–{formatTimecode(row.endSec)}
+                  </button>
+                ) : <strong>{formatTimecode(row.startSec)}–{formatTimecode(row.endSec)}</strong>
+              ) : <strong>No timestamp supplied</strong>}
               <p>Promise: {row.promised}</p>
               <p>Observed: {row.observed}</p>
             </li>)}

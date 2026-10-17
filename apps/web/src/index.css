@@ -2810,3 +2810,108 @@ a:focus-visible {
   outline: 2px solid var(--acid);
   outline-offset: 1px;
 }
+
+.yt-player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgb(0 0 0);
+}
+
+.yt-player-frame,
+.yt-player-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.yt-player-error {
+  position: absolute;
+  inset: auto 8px 8px;
+  margin: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgb(0 0 0 / 75%);
+  color: rgb(255 255 255);
+  font-size: 12px;
+}
+
+.yt-player-error a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.tt-result-player {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  max-width: 640px;
+}
+
+.tt-result-player p {
+  margin: 0;
+}
+
+.tt-timestamp {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 10px;
+  background: transparent;
+  color: var(--acid);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tt-timestamp:hover {
+  border-color: var(--acid);
+}
+
+.tt-clip-video button {
+  justify-self: start;
+}
+
+.project-telos-scene.has-video {
+  position: relative;
+  min-height: 0;
+  padding: 0;
+}
+
+.scene-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  text-align: center;
+}
+
+.scene-overlay.is-switch {
+  background:
+    radial-gradient(circle at 50% 30%, rgb(var(--c-ff9379) / 30%), transparent 60%),
+    rgb(var(--c-211e26) / 94%);
+  animation: scene-reveal 520ms ease both;
+}
+
+.scene-overlay.is-hold {
+  background: rgb(var(--c-131c23) / 90%);
+  backdrop-filter: blur(10px);
+}
+
+.scene-credit {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* The demo feed drives these players; clicks would desync them from the playhead. */
+.project-telos-scene.has-video .yt-player-frame {
+  pointer-events: none;
+}

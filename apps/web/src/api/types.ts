@@ -10,6 +10,8 @@ export interface TopicMatch {
   status: 'matched' | 'off-topic' | 'unrestricted' | 'unknown';
   topics: string[];
   matchedInterests: string[];
+  /** Interests Gemini judged covered (synonyms, sub-topics) that exact phrase matching missed. */
+  judgedInterests?: string[];
 }
 
 export interface ProjectTelosFixture {

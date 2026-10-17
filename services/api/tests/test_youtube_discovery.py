@@ -283,6 +283,71 @@ def test_sdk_input_includes_real_thumbnail_and_url_but_not_boundary_reasons(monk
     assert captured["config"]["http_options"]["timeout"] == 120_000
 
 
+def fake_sdk(monkeypatch, replies):
+    calls = []
+
+    def generate(**kwargs):
+        calls.append(kwargs)
+        reply = replies[len(calls) - 1]
+        if isinstance(reply, Exception):
+            raise reply
+        return SimpleNamespace(text=reply)
+
+    @contextmanager
+    def client(**kwargs):
+        yield SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+
+    monkeypatch.setattr("project_telos_api.youtube_discovery.build_client", client)
+    monkeypatch.setattr("project_telos_api.youtube_discovery.fetch_bytes", lambda url: b"\xff\xd8\xffsample")
+    return calls
+
+
+def test_invalid_model_output_is_retried_once(monkeypatch):
+    settings = configured(monkeypatch).model_copy(update={"provider": "gemini"})
+    calls = fake_sdk(monkeypatch, ["not JSON", json.dumps(audit_payload())])
+    assert audit_video(metadata(VIDEO_ID, SNIPPET, 30), settings).baitScore == 0
+    assert len(calls) == 2
+
+
+def test_incomplete_timeline_is_retried_then_refused(monkeypatch):
+    settings = configured(monkeypatch).model_copy(update={"provider": "gemini"})
+    short = audit_payload()
+    short["segments"][0]["endSec"] = 10
+    calls = fake_sdk(monkeypatch, [json.dumps(short), json.dumps(short)])
+    with pytest.raises(HTTPException, match="timeline coverage"):
+        audit_video(metadata(VIDEO_ID, SNIPPET, 30), settings)
+    assert len(calls) == 2
+
+
+def test_client_errors_are_not_retried(monkeypatch):
+    settings = configured(monkeypatch).model_copy(update={"provider": "gemini"})
+
+    class Rejected(Exception):
+        code = 400
+
+    calls = fake_sdk(monkeypatch, [Rejected("bad request"), json.dumps(audit_payload())])
+    with pytest.raises(HTTPException):
+        audit_video(metadata(VIDEO_ID, SNIPPET, 30), settings)
+    assert len(calls) == 1
+
+
+def test_audit_sends_declared_interests_and_uses_judged_matches(client, monkeypatch):
+    profile_id = profile(client)
+    enable_analysis(client, monkeypatch)
+    search(client, profile_id)
+    calls = fake_sdk(monkeypatch, [json.dumps({
+        **audit_payload(), "topics": ["flight training", "crosswind landings"], "interestMatches": ["aviation"],
+    })])
+    response = analyse(client, profile_id)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert '"declaredInterests"' in calls[0]["contents"][0]["text"]
+    assert "No graphic content" not in json.dumps(calls[0]["contents"][0])
+    assert result["topicMatch"]["status"] == "matched"
+    assert result["topicMatch"]["judgedInterests"] == result["topicMatch"]["matchedInterests"]
+    assert result["recommendation"] == "eligible"
+
+
 def test_invalid_sdk_response_and_thumbnail_fail_explicitly(monkeypatch):
     settings = configured(monkeypatch).model_copy(update={"provider": "gemini"})
     video = metadata(VIDEO_ID, SNIPPET, 30)
