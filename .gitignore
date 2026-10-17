@@ -22,5 +22,5 @@ Thumbs.db
 
 packages/contracts/src/generated/
 
-# Runtime data written by the local provider: profiles, decisions, receipt events.
+# Runtime data written by the local provider:profiles, decisions, receipt events.
 .local/
