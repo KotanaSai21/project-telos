@@ -521,3 +521,10 @@ def test_status_reports_new_capabilities_without_secrets(imagen) -> None:
     assert body["imagenConfigured"] is True and body["imagenModel"]
     assert body["translationEnabled"] is False and body["analyticsEnabled"] is False
     assert "private-gemini-key" not in json.dumps(body)
+
+def test_invalid_scan_output_is_retried_once(live) -> None:
+    client, calls, responses = live
+    responses[:] = [json.dumps({"alignment_score": 500}), json.dumps(ghost_payload()), json.dumps(sentiment_payload())]
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body())
+    assert response.status_code == 200, response.text
+    assert len(calls) == 3

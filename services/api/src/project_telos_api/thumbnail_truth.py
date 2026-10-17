@@ -14,10 +14,10 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, TypeVar
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from project_telos_api.analytics import analytics_enabled, record_verdict, verdict_row
 from project_telos_api.config import Settings, get_settings
@@ -470,6 +470,7 @@ def build_submission(
 
 
 SCAN_TIMEOUT_MS: Final[int] = 60_000
+ScanT = TypeVar("ScanT", bound=BaseModel)
 
 
 def run_scans(
@@ -496,29 +497,29 @@ def run_scans(
             "http_options": {"timeout": SCAN_TIMEOUT_MS},
         }
 
-    def generate(client: Any, prompt: str, schema: type[BaseModel]) -> Any:
-        # A scan normally takes ~10-15 s; an occasional request stalls until the deadline.
-        # Retry a stalled or 5xx attempt once rather than making the creator wait twice as long.
+    def scan(client: Any, prompt: str, schema: type[ScanT]) -> ScanT:
+        # A scan normally takes ~10-15 s; an occasional request stalls until the deadline or
+        # returns output that fails strict validation. Retry either once; a second failure
+        # produces no verdict.
         for attempt in range(2):
             try:
-                return client.models.generate_content(
+                response = client.models.generate_content(
                     model=settings.gemini_model, contents=parts, config=config(prompt, schema),
                 )
+                return schema.model_validate_json(response.text)
             except Exception as exc:
-                retryable = getattr(exc, "code", None) in (500, 502, 503, 504) or isinstance(exc, TimeoutError)
+                retryable = (isinstance(exc, (ValidationError, TimeoutError))
+                             or getattr(exc, "code", None) in (500, 502, 503, 504))
                 if attempt or not retryable:
                     raise
-                get_logger().warning("thumbnail_truth.scan_retry", extra={"upstream_status": getattr(exc, "code", None)})
+                get_logger().warning("thumbnail_truth.scan_retry", extra={
+                    "upstream_status": getattr(exc, "code", None), "failure_type": type(exc).__name__,
+                })
         raise AssertionError("unreachable")
 
     try:
         with build_client(**settings.ai_client_options) as client:
-            ghost_response = generate(client, GHOST_ENTITY_PROMPT, GhostEntityScan)
-            sentiment_response = generate(client, SENTIMENT_PROMPT, SentimentScan)
-        return (
-            GhostEntityScan.model_validate_json(ghost_response.text),
-            SentimentScan.model_validate_json(sentiment_response.text),
-        )
+            return scan(client, GHOST_ENTITY_PROMPT, GhostEntityScan), scan(client, SENTIMENT_PROMPT, SentimentScan)
     except Exception as exc:
         raise analysis_failure(exc, event="thumbnail_truth.scan_failed") from None
 
