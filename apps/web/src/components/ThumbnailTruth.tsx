@@ -46,6 +46,32 @@ interface Baseline {
   score: number;
   band: ThumbnailTruthResult['band'];
   title: string;
+  result: ThumbnailTruthResult;
+}
+
+const ghostNames = (result: ThumbnailTruthResult) =>
+  result.ghostTracker.filter((item) => item.status === 'ghost').map((item) => item.entity);
+
+/** Plain-language changes between two checks, worked out from the results alone. */
+function whatChanged(before: ThumbnailTruthResult, after: ThumbnailTruthResult): {
+  better: string[]; still: string[];
+} {
+  const afterGhosts = ghostNames(after).map((name) => name.toLowerCase());
+  const removed = ghostNames(before).filter((name) => !afterGhosts.includes(name.toLowerCase()));
+  const better: string[] = [];
+  if (removed.length) better.push(`Removed what the video never showed: ${removed.join(', ')}`);
+  if (before.visualExaggeration.detected && !after.visualExaggeration.detected) better.push('Dropped the exaggerated graphics');
+  if (before.sentiment.contradiction && !after.sentiment.contradiction) {
+    better.push(`Mood now matches: ${before.sentiment.thumbnail.toLowerCase()} → ${after.sentiment.thumbnail.toLowerCase()}`);
+  }
+  if (before.sentiment.thematicMismatch && !after.sentiment.thematicMismatch) better.push('Topic now matches the video');
+  const kept = (after.evidence ?? []).filter((row) => row.kept).map((row) => row.promised.toLowerCase());
+  if (kept.length) better.push(`Promises kept: ${kept.join(', ')}`);
+  const still: string[] = [];
+  if (afterGhosts.length) still.push(`still shows ${ghostNames(after).join(', ')}`);
+  if (after.sentiment.contradiction) still.push('the mood still oversells the video');
+  if (after.sentiment.thematicMismatch) still.push('the topic still differs');
+  return { better, still };
 }
 
 interface PickedFile {
@@ -170,7 +196,7 @@ function ContradictionExplainer({ onExample }: { onExample: (() => void) | null 
             <span className="tt-sample-thumb-text">IT EXPLODED?!</span>
             <span className="tt-sample-thumb-caption">burning supercar · screaming face</span>
           </div>
-          <figcaption><small>Thumbnail sells</small><strong>😱 Panic</strong></figcaption>
+          <figcaption><small>Viewers will expect</small><strong>😱 Panic</strong></figcaption>
           <EmotionBar value={95} label="Thumbnail emotional intensity" />
         </figure>
         <div className="tt-explainer-gap" aria-hidden="true"><span>≠</span><small>80-pt gap</small></div>
@@ -233,7 +259,7 @@ function EmotionGap({ sentiment }: { sentiment: ThumbnailTruthResult['sentiment'
       </h4>
       <div className="tt-emotion-rows">
         <div>
-          <small>Thumbnail sells</small>
+          <small>Viewers will expect</small>
           <strong>{sentiment.thumbnail}</strong>
           {promised !== null && <EmotionBar value={promised} label="Thumbnail emotional intensity" />}
         </div>
@@ -373,6 +399,55 @@ function ClipPicker({ preview, loading, clip, disabled, onClip }: {
   );
 }
 
+/** One row per promise: what the thumbnail promises, what the video shows, and what to change. */
+function PromiseTable({ result, onJump }: {
+  result: ThumbnailTruthResult; onJump: ((seconds: number) => void) | null;
+}) {
+  const rows = result.evidence ?? [];
+  const kept = rows.filter((row) => row.kept).length;
+  return (
+    <article className="tt-card tt-ppf">
+      <h4>
+        Promise → Proof → Fix
+        {rows.length > 0 && <span>{kept} of {rows.length} promise{rows.length === 1 ? '' : 's'} kept</span>}
+      </h4>
+      {rows.length ? (
+        <table>
+          <thead>
+            <tr><th scope="col">The thumbnail promises</th><th scope="col">Found in the video</th><th scope="col">Change</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={index} className={row.kept ? 'is-kept' : 'is-broken'}>
+                <td data-label="Promises">{row.promised}</td>
+                <td data-label="Found">
+                  {row.startSec !== null && row.endSec !== null && (onJump ? (
+                    <button type="button" className="tt-timestamp" onClick={() => onJump(row.startSec!)}
+                      aria-label={`Play from ${formatTimecode(row.startSec)}`}>
+                      ▶ {formatTimecode(row.startSec)}–{formatTimecode(row.endSec)}
+                    </button>
+                  ) : <strong className="tt-ppf-time">{formatTimecode(row.startSec)}–{formatTimecode(row.endSec)}</strong>)}
+                  {row.observed}
+                </td>
+                <td data-label="Change">
+                  {row.kept
+                    ? <span className="tt-ppf-kept">✓ Promise kept</span>
+                    : <span className="tt-ppf-fix">{row.fix || 'Review this promise'}</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : <p className="tt-muted">No observations supplied. The rationale below explains the available evidence.</p>}
+      <p className="tt-muted tt-ppf-topics">
+        Promised topics: {result.promisedTopics?.join(', ') || 'none listed'}
+        {' · '}Observed topics: {result.actualTopics?.join(', ') || 'none listed'}
+        {rows.some((row) => row.startSec === null) && ' · rows without a time had no timestamp in the evidence'}
+      </p>
+    </article>
+  );
+}
+
 /** Concrete edits for each finding, so the creator knows exactly what to change. */
 function fixesFor(result: ThumbnailTruthResult): string[] {
   if (result.band === 'safe') return [];
@@ -398,11 +473,15 @@ function fixesFor(result: ThumbnailTruthResult): string[] {
 function FixList({ result, title, onRevise, onShowFix }: {
   result: ThumbnailTruthResult; title: string; onRevise: () => void; onShowFix: (() => void) | null;
 }) {
-  const fixes = fixesFor(result);
+  const rowFixes = (result.evidence ?? []).some((row) => !row.kept && row.fix);
+  const fixes = rowFixes
+    ? (result.band === 'safe' ? [] : [result.remediationTip].filter(Boolean))
+    : fixesFor(result);
   const suggestTitle = result.improvedTitle && result.improvedTitle !== title;
   return (
     <article className="tt-card tt-fixes">
-      <h4>What to change before publishing</h4>
+      <h4>{rowFixes ? 'Next step' : 'What to change before publishing'}</h4>
+      {rowFixes && fixes.length > 0 && <p className="tt-muted">Make the changes in the table above, then recheck.</p>}
       {fixes.length
         ? <ol>{fixes.map((fix) => <li key={fix}>{fix}</li>)}</ol>
         : <p className="tt-muted">Nothing to change: the thumbnail keeps the video's promise.</p>}
@@ -480,50 +559,28 @@ function Diagnostics({ result, title, onRevise, onShowFix }: {
         </div>
       )}
 
-      <div className="tt-summary">
-        <div className="tt-score-row">
-          <RiskGauge result={result} />
-          <div>
-            <p className={`tt-band band-${result.band}`}>{result.bandLabel}</p>
-            {result.riskScore !== null && (
-              <p className="tt-verdict">
-                Your thumbnail sells <strong>{result.sentiment.thumbnail.toLowerCase()}</strong>; your video
-                delivers <strong>{result.sentiment.video.toLowerCase()}</strong>
-                {ghosts > 0 && <>, and shows {ghosts} thing{ghosts === 1 ? '' : 's'} the video never does</>}.
-              </p>
-            )}
-            <p className="tt-scale">A signal to review, not proof of intent · 0–30 matches · 31–65 worth a look · 66–100 strong mismatch</p>
-            {result.breakdown && (
-              <p className="tt-breakdown">
-                Visual risk {result.breakdown.visualRisk} · Sentiment risk {result.breakdown.sentimentRisk}
-                {' '}→ average + {result.breakdown.penalties} pattern penalties
-              </p>
-            )}
-          </div>
+      <div className="tt-score-row">
+        <RiskGauge result={result} />
+        <div>
+          <p className={`tt-band band-${result.band}`}>{result.bandLabel}</p>
+          {result.riskScore !== null && (
+            <p className="tt-verdict">
+              Your thumbnail sells <strong>{result.sentiment.thumbnail.toLowerCase()}</strong>; your video
+              delivers <strong>{result.sentiment.video.toLowerCase()}</strong>
+              {ghosts > 0 && <>, and shows {ghosts} thing{ghosts === 1 ? '' : 's'} the video never does</>}.
+            </p>
+          )}
+          <p className="tt-scale">A signal to review, not proof of intent · 0–30 matches · 31–65 worth a look · 66–100 strong mismatch</p>
+          {result.breakdown && (
+            <p className="tt-breakdown">
+              Visual risk {result.breakdown.visualRisk} · Sentiment risk {result.breakdown.sentimentRisk}
+              {' '}→ average + {result.breakdown.penalties} pattern penalties
+            </p>
+          )}
         </div>
-
-        <article className="tt-card tt-proof">
-          <h4>The proof: promised vs. found</h4>
-          <dl className="tt-sentiment">
-            <div><dt>Promised topics</dt><dd>{result.promisedTopics?.join(', ') || 'No separate topic list supplied'}</dd></div>
-            <div><dt>Observed topics</dt><dd>{result.actualTopics?.join(', ') || 'See observations below'}</dd></div>
-          </dl>
-          {result.evidence?.length ? <ul className="tt-evidence">
-            {result.evidence.map((row, index) => <li key={index}>
-              {row.startSec !== null && row.endSec !== null ? (
-                video ? (
-                  <button type="button" className="tt-timestamp" onClick={() => jumpTo(row.startSec!)}
-                    aria-label={`Play from ${formatTimecode(row.startSec)}`}>
-                    ▶ {formatTimecode(row.startSec)}–{formatTimecode(row.endSec)}
-                  </button>
-                ) : <strong>{formatTimecode(row.startSec)}–{formatTimecode(row.endSec)}</strong>
-              ) : <strong>No timestamp supplied</strong>}
-              <p>Promise: {row.promised}</p>
-              <p>Observed: {row.observed}</p>
-            </li>)}
-          </ul> : <p className="tt-muted">No timestamped observations supplied. The rationale below explains the available evidence.</p>}
-        </article>
       </div>
+
+      <PromiseTable result={result} onJump={video ? jumpTo : null} />
 
       <EmotionGap sentiment={result.sentiment} />
 
@@ -568,6 +625,7 @@ function RecheckComparison({ before, after, afterTitle }: {
   const afterLabel = after.source === 'gemini' ? 'After your revision' : 'After the reviewed fix';
   if (after.riskScore === null) return null;
   const change = after.riskScore - before.score;
+  const changes = whatChanged(before.result, after);
   return (
     <section className="tt-recheck" aria-label="Before and after your revision">
       <div className={`tt-recheck-side band-${before.band}`}>
@@ -580,6 +638,12 @@ function RecheckComparison({ before, after, afterTitle }: {
       <p className={change < 0 ? 'is-better' : change > 0 ? 'is-worse' : ''}>
         {change < 0 ? `Risk down ${-change} points` : change > 0 ? `Risk up ${change} points` : 'No change in risk'}
       </p>
+      {(changes.better.length > 0 || changes.still.length > 0) && (
+        <ul className="tt-recheck-changes" aria-label="What changed">
+          {changes.better.map((line) => <li key={line} className="is-better">✓ {line}</li>)}
+          {changes.still.length > 0 && <li className="is-still">Still to fix: {changes.still.join('; ')}</li>}
+        </ul>
+      )}
     </section>
   );
 }
@@ -814,14 +878,16 @@ export function ThumbnailTruth() {
   function showFix(original: ThumbnailTruthSample, fixed: ThumbnailTruthSample) {
     showSample(fixed);
     if (original.result.riskScore !== null) {
-      setBaseline({ score: original.result.riskScore, band: original.result.band, title: original.title });
+      setBaseline({
+        score: original.result.riskScore, band: original.result.band, title: original.title, result: original.result,
+      });
     }
   }
 
   function revise(image?: ThumbnailRedesignResult) {
     if (!result) return;
     pendingBaseline.current = result.riskScore === null
-      ? null : { score: result.riskScore, band: result.band, title: resultTitle };
+      ? null : { score: result.riskScore, band: result.band, title: resultTitle, result };
     if (sample) {
       setDescription(sample.description);
       setTranscript(sample.transcript);

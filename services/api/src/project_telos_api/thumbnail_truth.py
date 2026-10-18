@@ -95,9 +95,15 @@ Steps:
 3. Check the thumbnail for heavy alteration or fabricated click anchors.
 4. Score visual alignment 0-100, where 100 is an exact factual match and 0 is fabricated.
 5. List promised_topics and actual_topics. Add concise evidence comparing the promise
-   with the video or transcript. Only include timestamps observed in the video or supplied
-   transcript; use null startSec/endSec when no timestamp is available. Never invent a time.
-   Timestamp ranges need endSec > startSec; for a single moment, use a one-second range.
+   with the video or transcript: one row per thing the thumbnail or title promises (an
+   object, event, emotion, or topic). Only include timestamps observed in the video or
+   supplied transcript; use null startSec/endSec when no timestamp is available. Never
+   invent a time. Timestamp ranges need endSec > startSec; for a single moment, use a
+   one-second range.
+6. For each evidence row, set kept to true when the video delivers that promise. When it
+   does not, set kept to false and give fix: one short, concrete change to the thumbnail or
+   title (under 15 words), such as "Remove the flames and the IT EXPLODED text". Leave fix
+   empty when kept is true.
 
 Set evidence_status to "insufficient" when neither a video nor a meaningful transcript is
 available, or when the thumbnail cannot be read.
@@ -131,15 +137,25 @@ Steps:
 {REFERENCE_EXAMPLES}"""
 
 
-class CreatorEvidence(BaseModel):
-    """A supported observation; unknown timestamps remain explicitly absent."""
+def _require_every_field(schema: dict[str, Any]) -> None:
+    """Gemini must fill every field; the defaults only keep older stored results valid."""
+    schema["required"] = list(schema["properties"])
 
-    model_config = ConfigDict(extra="forbid")
+
+class CreatorEvidence(BaseModel):
+    """One promise, the evidence for it, and the fix when the video does not deliver it.
+
+    Unknown timestamps remain explicitly absent.
+    """
+
+    model_config = ConfigDict(extra="forbid", json_schema_extra=_require_every_field)
 
     promised: str = Field(min_length=1, max_length=400)
     observed: str = Field(min_length=1, max_length=600)
     startSec: float | None = Field(None, ge=0)
     endSec: float | None = Field(None, ge=0)
+    kept: bool = False
+    fix: str = Field("", max_length=200)
 
     @model_validator(mode="after")
     def ordered(self) -> "CreatorEvidence":
@@ -610,10 +626,7 @@ def _sample(
         region=region, thumbnailCaption=caption, thumbnailText=text, thumbnailTone=tone,
         revisionOf=revision_of,
         result=build_result(
-            GhostEntityScan(**{
-                "evidence": [{"promised": caption, "observed": transcript}],
-                **ghost,
-            }), SentimentScan(**sentiment),
+            GhostEntityScan(**ghost), SentimentScan(**sentiment),
             source="reviewed-sample", model=None, video_provided=False,
         ),
     )
@@ -631,6 +644,12 @@ SAMPLES: Final[tuple[Sample, ...]] = (
         ghost={
             "promised_topics": ["sourdough baking"],
             "actual_topics": ["sourdough baking"],
+            "evidence": [
+                {"promised": "A finished 72-hour sourdough loaf",
+                 "observed": "Day one feeds the starter; day three bakes and slices the loaf.", "kept": True},
+                {"promised": "A calm, proud bake",
+                 "observed": "An upbeat, step-by-step tutorial.", "kept": True},
+            ],
             "evidence_status": "sufficient",
             "thumbnail_entities": ["Presenter", "Sourdough loaf", "Kitchen"],
             "verified_in_video": ["Presenter", "Sourdough loaf", "Kitchen"],
@@ -663,6 +682,16 @@ SAMPLES: Final[tuple[Sample, ...]] = (
         ghost={
             "promised_topics": ["supercar", "fire"],
             "actual_topics": ["hatchback wash"],
+            "evidence": [
+                {"promised": "A burning red supercar",
+                 "observed": "Only a family hatchback appears; no supercar is mentioned.",
+                 "fix": "Show the hatchback you actually wash."},
+                {"promised": "Something exploded",
+                 "observed": "No fire or explosion: a calm rinse, foam, and dry.",
+                 "fix": "Remove the flames, red circle, and 'IT EXPLODED?!'."},
+                {"promised": "A car wash",
+                 "observed": "The whole video is a one-shampoo wash routine.", "kept": True},
+            ],
             "evidence_status": "sufficient",
             "thumbnail_entities": ["Red supercar", "Fire", "Presenter"],
             "verified_in_video": ["Presenter"],
@@ -697,6 +726,16 @@ SAMPLES: Final[tuple[Sample, ...]] = (
         ghost={
             "promised_topics": ["personal loss"],
             "actual_topics": ["exam results", "revision habits"],
+            "evidence": [
+                {"promised": "Losing everything",
+                 "observed": "Mixed exam results and which revision habits to keep.",
+                 "fix": "Use text like 'Mixed results: what I'd change'."},
+                {"promised": "A presenter in tears",
+                 "observed": "The tone is reflective and mildly disappointed, not distressed.",
+                 "fix": "Use a thoughtful expression instead of crying."},
+                {"promised": "Exam results",
+                 "observed": "The video reviews the results and revision habits.", "kept": True},
+            ],
             "evidence_status": "sufficient",
             "thumbnail_entities": ["Presenter", "Tears"],
             "verified_in_video": ["Presenter"],
@@ -730,6 +769,12 @@ SAMPLES: Final[tuple[Sample, ...]] = (
         ghost={
             "promised_topics": ["hatchback wash"],
             "actual_topics": ["hatchback wash"],
+            "evidence": [
+                {"promised": "A foam-covered hatchback",
+                 "observed": "The hatchback is rinsed, foamed, and dried.", "kept": True},
+                {"promised": "One product",
+                 "observed": "A single shampoo is used throughout.", "kept": True},
+            ],
             "evidence_status": "sufficient",
             "thumbnail_entities": ["Presenter", "Hatchback", "Foam"],
             "verified_in_video": ["Presenter", "Hatchback", "Foam"],

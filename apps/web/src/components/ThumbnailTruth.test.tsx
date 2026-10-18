@@ -79,9 +79,9 @@ describe('ThumbnailTruth', () => {
     status(true);
     render(<ThumbnailTruth />);
     await userEvent.click(await screen.findByRole('button', { name: /Bait: ghost supercar/ }));
-    expect(screen.getByText('Promise: A burning supercar')).toBeInTheDocument();
-    expect(screen.getByText('Observed: A calm car wash')).toBeInTheDocument();
-    expect(screen.getByText('No timestamp supplied')).toBeInTheDocument();
+    const row = screen.getByRole('row', { name: /A burning supercar/ });
+    expect(row).toHaveTextContent('A calm car wash');
+    expect(row).toHaveTextContent('Review this promise');
     await userEvent.click(screen.getByRole('button', { name: 'Revise draft and recheck' }));
     expect(screen.getByLabelText('Video title')).toHaveValue('A one-product hatchback wash');
     expect(screen.getByLabelText('Transcript or subtitles')).toHaveValue(sample.transcript);
@@ -325,7 +325,7 @@ describe('ThumbnailTruth', () => {
     await userEvent.click(screen.getByRole('button', { name: /Bait: ghost supercar/ }));
 
     expect(screen.getByText(/Reviewed example\./)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'The proof: promised vs. found' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Promise → Proof → Fix/ })).toBeInTheDocument();
     expect(screen.getByText(/A signal to review, not proof of intent/)).toBeInTheDocument();
     const fixes = screen.getByRole('heading', { name: 'What to change before publishing' }).closest('article')!;
     expect(fixes).toHaveTextContent('Remove “Red supercar” from the thumbnail: it never appears in the video.');
@@ -339,5 +339,45 @@ describe('ThumbnailTruth', () => {
     expect(comparison).toHaveTextContent('Risk down 92 points');
     expect(screen.getByText("Nothing to change: the thumbnail keeps the video's promise.")).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Revise draft and recheck' })).not.toBeInTheDocument();
+  });
+
+  it('reads each promise across to its proof and fix, and says what a revision changed', async () => {
+    status(false);
+    const rows = [
+      { promised: 'A burning red supercar', observed: 'Only a hatchback appears.', startSec: null, endSec: null,
+        kept: false, fix: 'Show the hatchback you actually wash.' },
+      { promised: 'A car wash', observed: 'A wash routine throughout.', startSec: 3, endSec: 9, kept: true, fix: '' },
+    ];
+    const bait: ThumbnailTruthSample = { ...sample, result: { ...highRisk, evidence: rows } };
+    const fixed: ThumbnailTruthSample = {
+      ...sample, id: 'ghost-supercar-fixed', revisionOf: 'ghost-supercar', title: 'A one-product hatchback wash',
+      result: {
+        ...highRisk, riskScore: 8, band: 'safe', bandLabel: 'Thumbnail matches the video',
+        ghostTracker: [{ entity: 'Hatchback', status: 'verified' }],
+        visualExaggeration: { detected: false, details: '' },
+        sentiment: { ...highRisk.sentiment, thumbnail: 'Upbeat', contradiction: false, thematicMismatch: false },
+        evidence: [{ ...rows[1]!, promised: 'A foam-covered hatchback' }],
+      },
+    };
+    vi.mocked(api.thumbnailTruthSamples).mockResolvedValue([bait, fixed]);
+    render(<ThumbnailTruth />);
+    await userEvent.click(await screen.findByRole('button', { name: /Bait: ghost supercar/ }));
+
+    expect(screen.getByText('1 of 2 promises kept')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /A burning red supercar/ }))
+      .toHaveTextContent('Show the hatchback you actually wash.');
+    expect(screen.getByRole('row', { name: /A car wash/ })).toHaveTextContent('0:03–0:09');
+    expect(screen.getByRole('row', { name: /A car wash/ })).toHaveTextContent('✓ Promise kept');
+    expect(screen.getByRole('heading', { name: 'Next step' })).toBeInTheDocument();
+    expect(screen.getByText('Viewers will expect', { selector: '.tt-emotion small' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /See the fixed version/ }));
+    const changes = screen.getByRole('list', { name: 'What changed' });
+    expect(changes).toHaveTextContent('Removed what the video never showed: Red supercar');
+    expect(changes).toHaveTextContent('Dropped the exaggerated graphics');
+    expect(changes).toHaveTextContent('Mood now matches: panic → upbeat');
+    expect(changes).toHaveTextContent('Topic now matches the video');
+    expect(changes).toHaveTextContent('Promises kept: a foam-covered hatchback');
+    expect(changes).not.toHaveTextContent('Still to fix');
   });
 });

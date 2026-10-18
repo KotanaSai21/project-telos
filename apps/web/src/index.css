@@ -3667,3 +3667,118 @@ a:focus-visible {
 .hold-actions.is-skip-first {
   flex-direction: row-reverse;
 }
+
+/* Promise -> Proof -> Fix: one row per promise, read left to right. */
+.tt-ppf {
+  margin-top: 16px;
+}
+
+.tt-ppf table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.tt-ppf th {
+  padding: 0 12px 8px 0;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.tt-ppf td {
+  border-top: 1px solid var(--line);
+  padding: 11px 12px 11px 0;
+  vertical-align: top;
+}
+
+.tt-ppf td:first-child {
+  width: 30%;
+  font-weight: 600;
+}
+
+.tt-ppf td:last-child {
+  width: 30%;
+}
+
+.tt-ppf tr.is-broken td:first-child {
+  box-shadow: inset 3px 0 0 var(--coral);
+  padding-left: 12px;
+}
+
+.tt-ppf tr.is-kept td:first-child {
+  box-shadow: inset 3px 0 0 rgb(var(--c-6be59a));
+  padding-left: 12px;
+}
+
+.tt-ppf .tt-timestamp,
+.tt-ppf-time {
+  display: inline-block;
+  margin-right: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.tt-ppf-kept {
+  color: rgb(var(--c-6be59a));
+  font-weight: 600;
+}
+
+.tt-ppf-fix {
+  color: var(--coral);
+  font-weight: 600;
+}
+
+.tt-ppf-topics {
+  margin: 10px 0 0;
+}
+
+.tt-recheck-changes {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.tt-recheck-changes .is-better { color: rgb(var(--c-c4f5d5)); }
+.tt-recheck-changes .is-still { color: var(--coral); }
+
+@media (max-width: 760px) {
+  .tt-ppf thead {
+    display: none;
+  }
+
+  .tt-ppf tr,
+  .tt-ppf td {
+    display: block;
+    width: auto !important;
+  }
+
+  .tt-ppf td {
+    border-top: 0;
+    padding: 3px 0 3px 12px;
+  }
+
+  .tt-ppf tr {
+    border-top: 1px solid var(--line);
+    padding: 8px 0;
+  }
+
+  .tt-ppf td::before {
+    content: attr(data-label) ": ";
+    color: var(--muted);
+    font-weight: 400;
+  }
+}
+
+/* A matching mood is good news, so its "=" is green, not the warning coral. */
+.tt-emotion:not(.is-on) .tt-explainer-gap {
+  color: rgb(var(--c-6be59a));
+}

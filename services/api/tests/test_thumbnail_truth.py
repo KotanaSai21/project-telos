@@ -306,9 +306,10 @@ def test_creator_evidence_keeps_unknown_timestamps_and_rejects_invalid_ranges():
 def test_samples_supply_honest_improvements_without_invented_timestamps(client):
     sample = client.get("/project-telos/thumbnail-truth/samples").json()[1]
     assert sample["result"]["improvedTitle"] == "How I wash my hatchback with one shampoo"
-    evidence = sample["result"]["evidence"][0]
-    assert evidence["observed"] == sample["transcript"]
-    assert evidence["startSec"] is None
+    evidence = sample["result"]["evidence"]
+    assert all(row["startSec"] is None and row["endSec"] is None for row in evidence)
+    assert all(row["fix"] for row in evidence if not row["kept"])
+    assert any(row["kept"] for row in evidence) and not all(row["kept"] for row in evidence)
 
 
 def test_live_creator_report_carries_topics_evidence_and_title_suggestion(live):
@@ -651,3 +652,24 @@ def test_the_supercar_sample_has_a_reviewed_fix_that_scores_safe(client: TestCli
     assert fixed["result"]["band"] == "safe"
     assert fixed["result"]["riskScore"] < samples["ghost-supercar"]["result"]["riskScore"]
     assert fixed["title"] == samples["ghost-supercar"]["result"]["improvedTitle"]
+
+
+def test_every_evidence_field_is_required_from_gemini() -> None:
+    schema = generation_schema(GhostEntityScan.model_json_schema())
+    row = schema["$defs"]["CreatorEvidence"] if "$defs" in schema else None
+    rows = row or schema["properties"]["evidence"]["items"]
+    assert set(rows["required"]) == {"promised", "observed", "startSec", "endSec", "kept", "fix"}
+
+
+def test_evidence_rows_carry_their_own_fix(live) -> None:
+    client, _, responses = live
+    responses[0] = json.dumps(ghost_payload(evidence=[
+        {"promised": "Ferrari", "observed": "A hatchback", "startSec": None, "endSec": None,
+         "kept": False, "fix": "Show the hatchback."},
+        {"promised": "A car wash", "observed": "A car wash", "startSec": 2, "endSec": 9,
+         "kept": True, "fix": ""},
+    ]))
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body())
+    assert response.status_code == 200, response.text
+    rows = response.json()["evidence"]
+    assert [(row["kept"], row["fix"]) for row in rows] == [(False, "Show the hatchback."), (True, "")]

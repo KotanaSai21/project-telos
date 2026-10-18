@@ -165,7 +165,11 @@ export interface ThumbnailTruthResult {
   analysedWindowSec?: number | null;
   promisedTopics?: string[];
   actualTopics?: string[];
-  evidence?: Array<{ promised: string; observed: string; startSec: number | null; endSec: number | null }>;
+  /** One row per promise: the evidence for it, whether the video keeps it, and the fix if not. */
+  evidence?: Array<{
+    promised: string; observed: string; startSec: number | null; endSec: number | null;
+    kept?: boolean; fix?: string;
+  }>;
   improvedTitle?: string;
 }
 
