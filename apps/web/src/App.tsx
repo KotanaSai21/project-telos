@@ -558,19 +558,15 @@ export function App() {
                 </div>
                 {session.index < ORDER.length - 1 ? (
                   <div className="feed-navigation">
-                  {!canAdvance && <button type="button" className="project-telos-button secondary" disabled={busy}
+                  {/* A held or unwatched item offers its own choices; here the viewer can always move on. */}
+                  {!canAdvance ? <button type="button" className="project-telos-button secondary" disabled={busy}
                     onClick={() => void perform(() => push(profile, { ...session, index: session.index + 1 }))}>
-                    Skip video
-                  </button>}
-                  <button type="button" className="project-telos-button journey-cta" disabled={busy || !canAdvance}
+                    {busy ? 'Checking next video…' : 'Skip video'}
+                  </button> : <button type="button" className="project-telos-button journey-cta" disabled={busy}
                     onClick={() => void perform(() => push(profile, { ...session, index: session.index + 1 }))}>
-                    {busy
-                      ? 'Preparing next scene…'
-                      : item.status === 'held'
-                        ? 'Reframe to continue'
-                        : trapReady ? 'Continue the story' : 'Next scene'}
+                    {busy ? 'Checking next video…' : trapReady ? 'Continue the story' : 'Next scene'}
                     <span aria-hidden="true">↗</span>
-                  </button>
+                  </button>}
                   </div>
                 ) : (
                   <button type="button" className="project-telos-button journey-cta" disabled={busy}

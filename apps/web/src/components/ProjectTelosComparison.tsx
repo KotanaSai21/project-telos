@@ -47,6 +47,8 @@ interface Props {
   showBefore?: boolean;
   onHeld: () => void;
   onReframe: () => void;
+  /** Move on to the next video; absent on the last one. */
+  onSkip?: () => void;
 }
 
 /**
@@ -55,7 +57,7 @@ interface Props {
  * Paired synthetic playheads isolate the intervention from feed selection.
  */
 export function ProjectTelosComparison({
-  fixture, item, busy, active = true, showBefore = false, onHeld, onReframe,
+  fixture, item, busy, active = true, showBefore = false, onHeld, onReframe, onSkip,
 }: Props) {
   const [started, setStarted] = useState(false);
   const ranges = useMemo(() => {
@@ -81,14 +83,7 @@ export function ProjectTelosComparison({
     // Delay startup so StrictMode's setup/cleanup replay cannot kill the active timers.
     const timer = window.setTimeout(() => {
       const current = playback.current;
-      if (!started) {
-        // A hold at 0:00 needs no playback: record it now, before anything is shown.
-        if (current.item.status === 'protected' && current.item.holdAtSec === 0 && !reported.current) {
-          reported.current = true;
-          onHeldRef.current();
-        }
-        return;
-      }
+      if (!started) return;
       if (current.before.state !== 'ended') current.before.play();
       if (current.after.state !== 'ended' && (current.item.status === 'allowed' ||
         (current.item.status === 'protected' && current.item.holdAtSec > 0 && !current.held))) {
@@ -104,6 +99,16 @@ export function ProjectTelosComparison({
       playback.current.after.pause();
     };
   }, [active, started]);
+
+  // A hold at 0:00 needs no playback: record it once the feed is idle (a report sent while the
+  // item is still loading would be rejected as a concurrent action).
+  useEffect(() => {
+    if (!active || busy || reported.current) return;
+    if (item.status === 'protected' && item.holdAtSec === 0) {
+      reported.current = true;
+      onHeldRef.current();
+    }
+  }, [active, busy, item.status, item.holdAtSec]);
 
   useEffect(() => {
     if (after.state === 'gated' && !reported.current) {
@@ -141,21 +146,61 @@ export function ProjectTelosComparison({
     </div>
   );
 
+  // What was hidden and why, in the viewer's terms, so a hold is never a dead end.
+  const mismatched = item.bait.evidence.filter((row) => row.mismatch > 0);
+  const hiddenFrom = mismatched[0]?.startSec ?? item.holdAtSec + 1;
+  const hiddenTo = mismatched.at(-1)?.endSec ?? fixture.durationSec;
+  const switchTopics = [...new Set(mismatched.flatMap((row) => row.topics))];
+  const midVideo = !offTopic && item.holdAtSec > 0;
+  const percent = (sec: number) => `${Math.min(100, (sec / fixture.durationSec) * 100)}%`;
+
   const holdCard = (
-    <div role="status">
-      <p className="text-sm font-semibold text-amber-200">
-        {item.topicMatch?.status === 'off-topic' ? 'Filtered from your feed' : 'Held for your preferences'}
+    <div role="status" className="hold-card">
+      <p className="hold-kicker">
+        {offTopic ? 'Filtered before it reached you'
+          : midVideo ? `⏸ Paused at ${formatTimecode(item.holdAtSec)}, one second before the switch`
+          : 'Held before it reached you'}
       </p>
-      <p data-testid="hold-time" className="mt-2 text-2xl font-semibold">Holding frame at {formatTimecode(item.holdAtSec)}</p>
-      <p className="mt-3 text-xs leading-6 text-slate-300">
-        {item.topicMatch?.status === 'off-topic'
-          ? 'This item is outside the topics you selected.'
-          : 'This part does not fit your declared preferences. You can request a clean summary instead.'}
+      <p data-testid="hold-time" className="hold-title">
+        {offTopic ? 'Not one of your topics'
+          : midVideo ? 'This video stops being what it promised'
+          : "This doesn't fit your boundaries"}
       </p>
-      <button type="button" className="project-telos-button mt-4" disabled={busy}
-        onClick={item.status === 'protected' ? onHeld : onReframe}>
-        {busy ? 'Saving / generating...' : item.status === 'protected' ? 'Retry saving hold' : 'Summarize & Reframe'}
-      </button>
+      <p className="hold-why">
+        {offTopic
+          ? `It's about ${item.topicMatch?.topics.join(', ') || 'something else'}. Nothing was played.`
+          : midVideo
+            ? <>It promised <strong>{fixture.promiseTopics.join(', ')}</strong>. From {formatTimecode(hiddenFrom)} it
+              turns to <strong>{switchTopics.join(', ') || 'something else'}</strong>, which you didn't ask for.</>
+            : item.decision.reason}
+      </p>
+      {midVideo && (
+        <div className="hold-timeline" aria-hidden="true">
+          <span className="is-watched" style={{ width: percent(item.holdAtSec) }} />
+          <span className="is-hidden" style={{ left: percent(hiddenFrom), width: percent(hiddenTo - hiddenFrom) }} />
+          <small style={{ left: 0 }}>Watched 0:00–{formatTimecode(item.holdAtSec)}</small>
+          <small style={{ left: percent(hiddenFrom) }}>Hidden {formatTimecode(hiddenFrom)}–{formatTimecode(hiddenTo)}</small>
+        </div>
+      )}
+      <div className={`hold-actions ${offTopic ? 'is-skip-first' : ''}`}>
+        {item.status === 'protected' ? (
+          <button type="button" className="project-telos-button" disabled={busy} onClick={onHeld}>
+            {busy ? 'Saving…' : 'Retry saving hold'}
+          </button>
+        ) : (
+          <button type="button" className={`project-telos-button ${offTopic ? 'secondary' : ''}`} disabled={busy}
+            onClick={onReframe}>
+            {busy ? 'Writing the summary…' : offTopic ? 'Read a summary anyway' : 'Get the clean summary instead'}
+          </button>
+        )}
+        {onSkip && (
+          <button type="button" className={`project-telos-button ${offTopic ? '' : 'secondary'}`} disabled={busy}
+            onClick={onSkip}>
+            Skip to next video
+          </button>
+        )}
+      </div>
+      {midVideo && <p className="hold-foot">Nothing after {formatTimecode(item.holdAtSec)} was shown to you.</p>}
     </div>
   );
   const player = (ref: RefObject<YouTubePlayerHandle | null>, onReady: () => void) => clip && (
@@ -231,7 +276,7 @@ export function ProjectTelosComparison({
           )}
         </div>
         <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-          <span>{showHold ? 'Protected playhead / held' : 'Protected playhead'}</span>
+          <span>{showHold ? (midVideo ? 'Paused before the switch' : 'Not played') : 'Your playhead'}</span>
           <span data-testid="after-time" className="font-mono">{formatTimecode(showHold ? item.holdAtSec : after.currentTime)}</span>
         </div>
         <div className="mt-3 h-1 rounded bg-slate-800"><div className="h-1 rounded bg-teal-300"

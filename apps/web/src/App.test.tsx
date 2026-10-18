@@ -262,7 +262,8 @@ describe('Project Telos journey', () => {
       "I'm here to learn about aviation, cooking, and DIY. Keep it clean; avoid graphic content.", 'learning',
       { goal: 'learn', topics: ['aviation', 'cooking', 'diy'] },
     );
-    expect(screen.getByRole('button', { name: 'Next scene' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Next scene' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Skip video' })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: 'Simulate hold' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Summarize & Reframe' }));
     await screen.findByText('Clean source summary.');
@@ -289,7 +290,7 @@ describe('Project Telos journey', () => {
     vi.mocked(api.projectTelosOutcome).mockRejectedValueOnce(new Error('Summary failed; frame remains held.'));
     await userEvent.click(await screen.findByRole('button', { name: 'Summarize & Reframe' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('frame remains held');
-    expect(screen.getByRole('button', { name: 'Reframe to continue' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Continue the story|Next scene/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Summarize & Reframe' }));
     expect(await screen.findByText('Clean source summary.')).toBeInTheDocument();
   });

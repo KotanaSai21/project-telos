@@ -67,7 +67,8 @@ export function ConsentFeed({ items, fixtures, busy, hasMore, onNext, onOutcome 
               <ProjectTelosComparison fixture={fixture} item={item} busy={busy}
                 active={activeId === item.itemId} showBefore={compare}
                 onHeld={() => onOutcome(item, 'held')}
-                onReframe={() => onOutcome(item, 'reframed')} />
+                onReframe={() => onOutcome(item, 'reframed')}
+                onSkip={hasMore && item.itemId === items.at(-1)?.itemId ? onNext : undefined} />
               <p className="feed-card-note">
                 Synthetic playback · reviewed timeline · topic relevance and boundaries are checked separately.
               </p>

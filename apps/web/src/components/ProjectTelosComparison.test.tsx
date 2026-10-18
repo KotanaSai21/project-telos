@@ -64,7 +64,11 @@ describe('ProjectTelosComparison', () => {
     expect(screen.getByTestId('before-time')).toHaveTextContent('0:14');
     expect(screen.getByTestId('after-time')).toHaveTextContent('0:13');
     expect(screen.getByTestId('before-scene')).toHaveAttribute('data-switched', 'true');
-    expect(screen.getByText('Held for your preferences')).toBeInTheDocument();
+    expect(screen.getByText('⏸ Paused at 0:13, one second before the switch')).toBeInTheDocument();
+    expect(screen.getByText('This video stops being what it promised')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('It promised diy. From 0:14 it turns to incident');
+    expect(screen.getByText('Hidden 0:14–0:21')).toBeInTheDocument();
+    expect(screen.getByText('Nothing after 0:13 was shown to you.')).toBeInTheDocument();
     expect(screen.queryByText(/Bait Index/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Promise:.*Body:/)).not.toBeInTheDocument();
     expect(onHeld).toHaveBeenCalledOnce();
@@ -124,10 +128,13 @@ describe('ProjectTelosComparison', () => {
   it('requires a saved hold before requesting the reframe and reports the provider', () => {
     const onHeld = vi.fn();
     const onReframe = vi.fn();
+    const onSkip = vi.fn();
     const { rerender } = render(<ProjectTelosComparison fixture={fixture}
-      item={{ ...item, status: 'held' }} busy={false} onHeld={onHeld} onReframe={onReframe} />);
-    screen.getByRole('button', { name: 'Summarize & Reframe' }).click();
+      item={{ ...item, status: 'held' }} busy={false} onHeld={onHeld} onReframe={onReframe} onSkip={onSkip} />);
+    screen.getByRole('button', { name: 'Get the clean summary instead' }).click();
     expect(onReframe).toHaveBeenCalledOnce();
+    screen.getByRole('button', { name: 'Skip to next video' }).click();
+    expect(onSkip).toHaveBeenCalledOnce();
     expect(onHeld).not.toHaveBeenCalled();
     rerender(<ProjectTelosComparison fixture={fixture} item={{
       ...item, status: 'reframed', summary: 'Clean approved source text.',
@@ -136,6 +143,26 @@ describe('ProjectTelosComparison', () => {
     }} busy={false} onHeld={onHeld} onReframe={onReframe} />);
     expect(screen.getByText('Clean approved source text.')).toBeInTheDocument();
     expect(screen.getByText(/Reviewed fixture summary \(offline\)/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Summarize & Reframe' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Get the clean summary instead' })).not.toBeInTheDocument();
+  });
+
+  it('records a hold at 0:00 only once the feed is idle, and offers skipping first', async () => {
+    const onHeld = vi.fn();
+    const filtered = {
+      ...item, holdAtSec: 0,
+      topicMatch: { status: 'off-topic' as const, topics: ['cooking'], matchedInterests: [] },
+    };
+    const props = { fixture, onHeld, onReframe: vi.fn(), onSkip: vi.fn() };
+    const { rerender } = render(<ProjectTelosComparison {...props} item={filtered} busy />);
+    await act(async () => { vi.advanceTimersByTime(100); });
+    expect(onHeld).not.toHaveBeenCalled();
+    rerender(<ProjectTelosComparison {...props} item={filtered} busy={false} />);
+    expect(onHeld).toHaveBeenCalledOnce();
+    rerender(<ProjectTelosComparison {...props} item={{ ...filtered, status: 'held' }} busy={false} />);
+    expect(screen.getByText('Not one of your topics')).toBeInTheDocument();
+    expect(screen.getByText("It's about cooking. Nothing was played.")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Skip to next video' })).not.toHaveClass('secondary');
+    expect(screen.getByRole('button', { name: 'Read a summary anyway' })).toHaveClass('secondary');
+    expect(onHeld).toHaveBeenCalledOnce();
   });
 });

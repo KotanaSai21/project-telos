@@ -3578,3 +3578,92 @@ a:focus-visible {
   -webkit-line-clamp: 3;
   padding-inline: 3px;
 }
+
+/* A held video: what was hidden, why, and what the viewer can do next. */
+.hold-card {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: min(100%, 520px);
+  text-align: center;
+}
+
+.hold-kicker {
+  margin: 0;
+  color: rgb(var(--c-f7c97a));
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.hold-title {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.hold-why {
+  margin: 2px 0 0;
+  color: rgb(var(--c-d5dcd8));
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.hold-why strong {
+  color: rgb(var(--c-f0f1e9));
+}
+
+.hold-timeline {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  margin: 14px 0 22px;
+  border-radius: 999px;
+  background: rgb(var(--c-d3e8dd) / 14%);
+}
+
+.hold-timeline span {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.hold-timeline .is-watched {
+  left: 0;
+  background: var(--mint);
+}
+
+.hold-timeline .is-hidden {
+  background: repeating-linear-gradient(
+    135deg, rgb(var(--c-ff9379) / 85%) 0 4px, rgb(var(--c-ff9379) / 35%) 4px 8px
+  );
+}
+
+.hold-timeline small {
+  position: absolute;
+  top: 11px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.hold-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.hold-foot {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* Off-topic: moving on is the main choice, so it comes first. */
+.hold-actions.is-skip-first {
+  flex-direction: row-reverse;
+}
