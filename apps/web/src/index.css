@@ -3002,7 +3002,7 @@ a:focus-visible {
   display: grid;
   gap: 12px;
   width: 100%;
-  max-width: 380px;
+  max-width: 460px;
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 28px 24px;
@@ -3027,6 +3027,49 @@ a:focus-visible {
 
 .access-hint {
   font-style: italic;
+}
+
+.access-security {
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.access-security h2 {
+  margin: 0 0 8px;
+  color: var(--acid);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.access-security ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.access-security li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.access-security li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--acid);
+}
+
+.access-security strong {
+  color: inherit;
+  font-weight: 600;
 }
 
 .access-card input {

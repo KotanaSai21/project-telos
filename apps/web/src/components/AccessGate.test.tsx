@@ -28,6 +28,8 @@ describe('AccessGate', () => {
 
     const input = await screen.findByLabelText('Access code');
     expect(screen.getByText('Hint: Two words')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /security by design/i })).toBeInTheDocument();
+    expect(screen.getByText(/No Gemini key to leak/)).toBeInTheDocument();
     expect(screen.queryByText('The app')).not.toBeInTheDocument();
 
     await userEvent.type(input, 'wrong');
