@@ -98,8 +98,9 @@ Steps:
    with the video or transcript: one row per thing the thumbnail or title promises (an
    object, event, emotion, or topic). Only include timestamps observed in the video or
    supplied transcript; use null startSec/endSec when no timestamp is available. Never
-   invent a time. Timestamp ranges need endSec > startSec; for a single moment, use a
-   one-second range.
+   invent a time. Transcript times are minutes:seconds (or hours:minutes:seconds); convert
+   them to seconds, so 2:22 is 142, not 222. Timestamp ranges need endSec > startSec; for a
+   single moment, use a one-second range.
 6. For each evidence row, set kept to true when the video delivers that promise. When it
    does not, set kept to false and give fix: one short, concrete change to the thumbnail or
    title (under 15 words), such as "Remove the flames and the IT EXPLODED text". Leave fix
@@ -557,6 +558,40 @@ def without_broken_timestamps(text: str) -> str:
     return json.dumps(payload)
 
 
+TRANSCRIPT_TIME: Final[re.Pattern[str]] = re.compile(r"(?<![\d:])(?:(\d{1,2}):)?(\d{1,2}):([0-5]\d)(?![\d:])")
+# A cited moment may run a little past the last written timestamp (the final line's duration).
+TRANSCRIPT_SLACK_SEC: Final[int] = 60
+
+
+def transcript_end(transcript: str) -> float | None:
+    """The latest m:ss or h:mm:ss time written in a transcript, in seconds; None without any."""
+    times = [
+        int(hours or 0) * 3600 + int(minutes) * 60 + int(seconds)
+        for hours, minutes, seconds in TRANSCRIPT_TIME.findall(transcript)
+    ]
+    return float(max(times)) if times else None
+
+
+def within_transcript(scan: GhostEntityScan, transcript: str) -> GhostEntityScan:
+    """Without a video, every timestamp must come from the transcript.
+
+    Times past the transcript's last stamp were misread or invented (for example 2:22 read as
+    222 seconds), so they are dropped, never adjusted. A transcript with no stamps cannot
+    support any time at all.
+    """
+    end = transcript_end(transcript)
+    limit = None if end is None else end + TRANSCRIPT_SLACK_SEC
+    rows, dropped = [], 0
+    for row in scan.evidence:
+        if row.startSec is not None and (limit is None or (row.endSec or 0) > limit):
+            row = row.model_copy(update={"startSec": None, "endSec": None})
+            dropped += 1
+        rows.append(row)
+    if dropped:
+        get_logger().warning("thumbnail_truth.transcript_timestamps_dropped", extra={"rows": dropped})
+    return scan.model_copy(update={"evidence": rows})
+
+
 SCAN_TIMEOUT_MS: Final[int] = 60_000
 ScanT = TypeVar("ScanT", bound=BaseModel)
 
@@ -918,6 +953,8 @@ def analyse(
         if video is not None and request.video is not None else None
     )
     ghost, sentiment = run_scans(submission, thumbnail, request.thumbnail.mimeType, video_part, settings)
+    if video is None:
+        ghost = within_transcript(ghost, request.transcript)
     result = build_result(
         ghost, sentiment, source="gemini", model=settings.gemini_model, video_provided=video is not None
     ).model_copy(update={"translation": translation})

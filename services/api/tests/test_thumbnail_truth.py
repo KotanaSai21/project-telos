@@ -576,7 +576,8 @@ def test_one_broken_timestamp_keeps_the_verdict(live) -> None:
         {"promised": "Supercar", "observed": "Hatchback", "startSec": 12, "endSec": 12},
         {"promised": "Wash", "observed": "Wash", "startSec": 3, "endSec": 8},
     ]))
-    response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body())
+    body = request_body(transcript="0:03 We rinse, foam, and dry the hatchback. 0:20 Done.")
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=body)
     assert response.status_code == 200, response.text
     evidence = response.json()["evidence"]
     assert (evidence[0]["startSec"], evidence[0]["endSec"]) == (None, None)
@@ -673,3 +674,41 @@ def test_evidence_rows_carry_their_own_fix(live) -> None:
     assert response.status_code == 200, response.text
     rows = response.json()["evidence"]
     assert [(row["kept"], row["fix"]) for row in rows] == [(False, "Show the hatchback."), (True, "")]
+
+
+@pytest.mark.parametrize(("transcript", "end"), [
+    ("0:00 Hi. 1:05 Add garlic. 2:22 That's it.", 142.0),
+    ("1:02:03 late in a long stream", 3723.0),
+    ("No times here, just 3 eggs and 2 cups.", None),
+    ("Version 1.2:30 is not a time? 10:15 is.", 615.0),
+])
+def test_transcript_end_reads_minutes_and_seconds(transcript, end) -> None:
+    from project_telos_api.thumbnail_truth import transcript_end
+
+    assert transcript_end(transcript) == end
+
+
+def test_transcript_only_checks_drop_times_past_the_transcript(live) -> None:
+    client, _, responses = live
+    responses[0] = json.dumps(ghost_payload(evidence=[
+        {"promised": "Recipe", "observed": "Recipe", "startSec": 0, "endSec": 142,
+         "kept": True, "fix": ""},
+        {"promised": "30 minutes", "observed": "About thirty minutes", "startSec": 222, "endSec": 223,
+         "kept": True, "fix": ""},
+    ]))
+    body = request_body(transcript="0:00 Hi, today we cook. 1:05 Add garlic. 2:22 That's it, thirty minutes.")
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=body)
+    assert response.status_code == 200, response.text
+    rows = response.json()["evidence"]
+    assert (rows[0]["startSec"], rows[0]["endSec"]) == (0, 142)
+    assert (rows[1]["startSec"], rows[1]["endSec"]) == (None, None)
+
+
+def test_transcript_without_times_supports_no_timestamps(live) -> None:
+    client, _, responses = live
+    responses[0] = json.dumps(ghost_payload(evidence=[
+        {"promised": "Wash", "observed": "Wash", "startSec": 3, "endSec": 8, "kept": True, "fix": ""},
+    ]))
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body())
+    assert response.status_code == 200, response.text
+    assert response.json()["evidence"][0]["startSec"] is None
