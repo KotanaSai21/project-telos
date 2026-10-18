@@ -10,13 +10,27 @@ vi.mock('../api/client', async (importOriginal) => {
   return { ...actual, api: { accessStatus: vi.fn(), accessVerify: vi.fn() } };
 });
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  window.sessionStorage.clear();
+});
 
 describe('AccessGate', () => {
-  it('shows the app straight away when no code is required', async () => {
+  it('explains the safeguards once per tab when no code is required', async () => {
     vi.mocked(api.accessStatus).mockResolvedValue({ required: false, unlocked: true, hint: null });
+    const { unmount } = render(<AccessGate><p>The app</p></AccessGate>);
+    expect(await screen.findByRole('heading', { name: 'How we keep it safe' })).toBeInTheDocument();
+    expect(screen.getByText(/Every visitor is rate limited/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Access code')).not.toBeInTheDocument();
+    expect(screen.queryByText('The app')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Enter Project Telos' }));
+    expect(await screen.findByText('The app')).toBeInTheDocument();
+
+    unmount();
     render(<AccessGate><p>The app</p></AccessGate>);
     expect(await screen.findByText('The app')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enter Project Telos' })).not.toBeInTheDocument();
   });
 
   it('asks for the code, shows the hint, and opens after a correct code', async () => {

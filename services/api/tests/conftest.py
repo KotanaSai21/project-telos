@@ -45,11 +45,14 @@ def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     for key, value in REQUIRED_ENV.items():
         monkeypatch.setenv(key, value)
     # Settings are cached; clear so each test sees its own environment.
+    from project_telos_api import ratelimit
     from project_telos_api.config import get_settings
 
     get_settings.cache_clear()
+    ratelimit.reset()
     yield
     get_settings.cache_clear()
+    ratelimit.reset()
 
 
 @pytest.fixture

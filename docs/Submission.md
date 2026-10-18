@@ -164,6 +164,12 @@ GitHub push -> Cloud Build -> Artifact Registry -> Cloud Run (continuous deploym
   data, not instructions; insufficient evidence returns "unverified", never a guessed score;
   timestamps that are not in the evidence are dropped, never invented.
 
+**Open for judging, safe by design.** The prototype needs no access code. Gemini runs on Vertex AI
+under the service's own identity, so there is no Gemini key to leak; other secrets live in Secret
+Manager. Each visitor is rate limited on every request that can call Gemini, Imagen, or YouTube;
+Cloud Run is capped at 3 instances; and a monthly billing budget alerts at 50%, 90%, and 100%.
+Nothing reaches Gemini without the user's consent, and uploaded files are not stored.
+
 ---
 
 ## 7. Technologies

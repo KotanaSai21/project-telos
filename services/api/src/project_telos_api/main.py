@@ -26,6 +26,7 @@ from project_telos_api.config import Settings, get_settings
 from project_telos_api.contracts import SCHEMA_FILES
 from project_telos_api.logging_setup import configure_logging, get_logger, set_request_id
 from project_telos_api.project_telos import router as project_telos_router
+from project_telos_api.ratelimit import LIMITED_DETAIL, is_limited, retry_after
 from project_telos_api.routes import router
 from project_telos_api.thumbnail_truth import router as thumbnail_truth_router
 from project_telos_api.translation import translation_enabled
@@ -139,6 +140,14 @@ def create_app() -> FastAPI:
     async def require_access_code(request: Request, call_next):  # type: ignore[no-untyped-def]
         if is_protected(request.url.path) and not is_unlocked(request, settings):
             return JSONResponse({"detail": LOCKED_DETAIL}, status_code=401)
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def limit_model_calls(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if is_limited(request):
+            wait = retry_after(request, settings.rate_limit_per_minute)
+            if wait is not None:
+                return JSONResponse({"detail": LIMITED_DETAIL}, status_code=429, headers={"Retry-After": str(wait)})
         return await call_next(request)
 
     @app.get("/health", response_model=HealthResponse, tags=["system"])

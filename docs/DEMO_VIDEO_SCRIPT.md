@@ -93,7 +93,7 @@ Record the deployed site: <https://project-telos-hget6gf4qq-ue.a.run.app>
 
 ## Recording checklist
 
-- **Before recording:** open the site, enter the access code, and hard-refresh (Ctrl+Shift+R).
+- **Before recording:** open the site, select **Enter Project Telos**, and hard-refresh (Ctrl+Shift+R).
   Run one live check first so the service is warm.
 - **Screen:** 1920×1080, browser zoom 90%, bookmarks bar hidden, dark theme (it reads best on video).
 - **Live waits:** a check takes 15–40 seconds. Cut the wait or speed it up, and say so on screen
@@ -106,8 +106,8 @@ Record the deployed site: <https://project-telos-hget6gf4qq-ue.a.run.app>
 
 - [ ] **Make the GitHub repository public.** It currently returns 404 to logged-out visitors,
       and the rules require an accessible repository.
-- [ ] **Judges need to get in.** Either remove the access code for the evaluation period or put the
-      code in the submission. The hint question alone may block judges.
+- [x] **Judges need to get in.** The site is open with no access code. The first screen explains the
+      safeguards (rate limit, spend cap, consent, no Gemini key) and lets judges in with one click.
 - [x] **Firebase:** the brief description covers Firebase through Firestore, and says the app is
       deployed on Cloud Run. Firebase Hosting is not used.
 - [ ] **Use the prescribed deck template**, filled from [Submission.md](Submission.md), exported to PDF.
