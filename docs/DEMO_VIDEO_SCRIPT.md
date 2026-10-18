@@ -108,9 +108,8 @@ Record the deployed site: <https://project-telos-hget6gf4qq-ue.a.run.app>
       and the rules require an accessible repository.
 - [ ] **Judges need to get in.** Either remove the access code for the evaluation period or put the
       code in the submission. The hint question alone may block judges.
-- [ ] **Firebase:** the brief description must cover Firebase. Deploy Firebase Hosting
-      (`firebase deploy --only hosting`, see [DEPLOYMENT.md](DEPLOYMENT.md)) or remove the bracketed
-      Firebase sentence from slide 12 of [Submission.md](Submission.md).
+- [x] **Firebase:** the brief description covers Firebase through Firestore, and says the app is
+      deployed on Cloud Run. Firebase Hosting is not used.
 - [ ] **Use the prescribed deck template**, filled from [Submission.md](Submission.md), exported to PDF.
 - [ ] Add screenshots (slide 9) and the public video link (slide 11).
 - [ ] Keep the Gemini quota and billing healthy for the whole evaluation period.

@@ -2,8 +2,9 @@
 
 Project Telos is a single-service deployment: one Cloud Run container serves the
 compiled React app and FastAPI API. The root [Dockerfile](../Dockerfile) builds the
-web app and packages it with the API. [Firebase Hosting](#firebase-hosting-in-front-of-cloud-run)
-can optionally serve the web app from its CDN and forward `/api/**` to that service.
+web app and packages it with the API. The deployed prototype runs directly on Cloud Run.
+Firebase is used through Firestore for storage. [Firebase Hosting](#firebase-hosting-in-front-of-cloud-run)
+is an optional extra that is not deployed.
 
 > The commands below deploy the current prototype. They do not replace a review of
 > access control, cost limits, and data retention before a public launch.
@@ -112,7 +113,7 @@ Settings requiring Google Cloud need `GOOGLE_CLOUD_PROJECT`.
 | YouTube Data API v3 | `YOUTUBE_API_KEY` | Intent search and video metadata; pasted links can use oEmbed without the key |
 | Imagen | `PROJECT_TELOS_IMAGEN_MODEL` | Generate an honest thumbnail suggestion; billing-enabled key required |
 | Firestore | `PROJECT_TELOS_STORAGE=firestore`, `PROJECT_TELOS_FIRESTORE_DATABASE` | Persist profiles, sessions, receipts, analyses, and each creator's recent checks (`creator_checks`) |
-| Firebase Hosting | [firebase.json](../firebase.json) | Serve the web app from the CDN; rewrite `/api/**` to Cloud Run |
+| Firebase Hosting (optional, not deployed) | [firebase.json](../firebase.json) | Serve the web app from the CDN; rewrite `/api/**` to Cloud Run |
 | BigQuery | `PROJECT_TELOS_BIGQUERY_ENABLED=true`, `PROJECT_TELOS_BIGQUERY_DATASET` | Store content-free verdict statistics |
 | Cloud Translation v3 | `PROJECT_TELOS_TRANSLATION_ENABLED=true` | Translate non-English creator drafts before analysis |
 | Cloud Run | Root `Dockerfile` | Serve API and built web app from one service |
@@ -296,6 +297,8 @@ gcloud run services update project-telos --region $REGION `
 Restrict the Gemini key to the Generative Language API.
 
 ### Firebase Hosting in front of Cloud Run
+
+Optional. The deployed prototype does not use it; it is served directly from Cloud Run.
 
 [firebase.json](../firebase.json) serves the built web app (`apps/web/dist`) from
 Firebase Hosting and rewrites `/api/**` to the `project-telos` Cloud Run service in

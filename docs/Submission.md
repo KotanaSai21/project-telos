@@ -147,9 +147,8 @@ FastAPI on Cloud Run (one container serves the API and the web app)
   |     intent parsing, clean summaries
   |-- Imagen: honest-thumbnail suggestion
   |-- YouTube Data API v3: search by declared interests, official metadata
-  |-- Firestore: profiles, sessions, receipts, analyses, creator check history
-  |-- Optional: BigQuery verdict analytics, Cloud Translation for non-English drafts,
-  |     Firebase Hosting in front of Cloud Run (firebase.json)
+  |-- Firestore (Firebase): profiles, sessions, receipts, analyses, creator check history
+  |-- Optional: BigQuery verdict analytics, Cloud Translation for non-English drafts
         ^
 GitHub push -> Cloud Build -> Artifact Registry -> Cloud Run (continuous deployment)
 ```
@@ -174,11 +173,11 @@ GitHub push -> Cloud Build -> Artifact Registry -> Cloud Run (continuous deploym
 | Generative AI | **Gemini** (Vertex AI) | Multimodal thumbnail and video analysis, intent parsing, summaries |
 | Image generation | **Imagen** | Honest replacement-thumbnail suggestions |
 | Hosting | **Cloud Run** + Cloud Build | One container for API and web app; deploys on every push |
-| Database | **Firestore** | Profiles, sessions, receipts, analyses, creator check history |
+| Database | **Firestore** (Firebase) | Profiles, sessions, receipts, analyses, creator check history |
 | Discovery | YouTube Data API v3 | Interest-based search and official metadata |
 | Web | React, TypeScript, Vite, Tailwind CSS | Creator Studio and viewer feed |
 | API | Python, FastAPI, Pydantic | Validation, scoring, policy, storage |
-| Optional | BigQuery, Cloud Translation, Firebase Hosting | Analytics, multilingual drafts, CDN hosting |
+| Optional | BigQuery, Cloud Translation | Analytics, multilingual drafts |
 
 ---
 
@@ -254,6 +253,5 @@ Measured on the deployed configuration with the test drafts in
 > **Imagen** thumbnail, and recheck to see what changed. In the **viewer feed**, people declare
 > what they want, and every video is understood before it plays; a bait-and-switch is paused
 > before the switch. The app runs as one container on **Cloud Run**, deployed from GitHub
-> through Cloud Build. **Firestore** stores profiles, sessions, analyses, and each creator's
-> check history. `[If deployed: Firebase Hosting serves the web app and forwards the API to
-> Cloud Run.]`
+> through Cloud Build. **Firebase** comes in through **Cloud Firestore**, which stores profiles,
+> sessions, analyses, and each creator's check history so revisions can be compared.
