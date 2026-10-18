@@ -14,7 +14,11 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import re
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from typing import Any, Final, Literal, TypeVar
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
@@ -23,6 +27,8 @@ from project_telos_api.analytics import analytics_enabled, record_verdict, verdi
 from project_telos_api.config import Settings, get_settings
 from project_telos_api.logging_setup import get_logger
 from project_telos_api.providers.gemini import analysis_failure, build_client, generation_schema
+from project_telos_api.routes import get_store
+from project_telos_api.store import Store
 from project_telos_api.translation import TranslationOutcome, translate_fields, translation_enabled
 from project_telos_api.youtube_discovery import Video, fetch_thumbnail, resolve_link
 
@@ -33,6 +39,9 @@ MAX_THUMBNAIL_BYTES: Final[int] = 4 * 1024 * 1024
 MAX_VIDEO_BYTES: Final[int] = 15 * 1024 * 1024
 SAFE_MAX: Final[int] = 30
 REVIEW_MAX: Final[int] = 65
+HISTORY_LIMIT: Final[int] = 10
+# An anonymous, browser-generated id; it groups one creator's checks and is not an account.
+CREATOR_ID_PATTERN: Final[str] = r"^[A-Za-z0-9-]{8,64}$"
 
 IMAGE_SIGNATURES: Final[dict[str, tuple[bytes, ...]]] = {
     "image/jpeg": (b"\xff\xd8\xff",),
@@ -42,10 +51,11 @@ IMAGE_SIGNATURES: Final[dict[str, tuple[bytes, ...]]] = {
 VIDEO_TYPES: Final[frozenset[str]] = frozenset({"video/mp4", "video/webm", "video/quicktime"})
 
 Band = Literal["safe", "review", "high", "unverified"]
+# Worded as review signals: a mismatch is worth checking, not proof of intent.
 BAND_LABELS: Final[dict[str, str]] = {
-    "safe": "Safe to publish",
-    "review": "Minor clickbait or exaggeration flagged",
-    "high": "High deception risk: publish held",
+    "safe": "Thumbnail matches the video",
+    "review": "Some mismatch: worth a look",
+    "high": "Strong mismatch: review before publishing",
     "unverified": "Not enough evidence for a verdict",
 }
 
@@ -109,10 +119,12 @@ Definitions:
 Steps:
 1. Describe the facial expressions, text overlay, and emotional tone of the thumbnail.
 2. Describe the true tone from the transcript, scene progression, and description.
-3. Compare them for severe divergence or manipulative framing.
-4. Score deception risk 0-100, where 100 means the emotional hook is fully fabricated.
-5. Give one concise, actionable remediation tip for the creator.
-6. Suggest an honest replacement title in improved_title, grounded in the actual video,
+3. Rate the emotional intensity of each, 0-100, where 0 is neutral or calm and 100 is
+   extreme (terror, sobbing, rage). Rate the video from what it actually shows, not its hook.
+4. Compare them for severe divergence or manipulative framing.
+5. Score deception risk 0-100, where 100 means the emotional hook is fully fabricated.
+6. Give one concise, actionable remediation tip for the creator.
+7. Suggest an honest replacement title in improved_title, grounded in the actual video,
    not in unsupported thumbnail entities. Leave it empty if evidence is insufficient.
 
 {UNTRUSTED_DATA_RULES}
@@ -164,6 +176,8 @@ class SentimentScan(BaseModel):
 
     thumbnail_projected_sentiment: str = Field(min_length=1, max_length=300)
     actual_video_sentiment: str = Field(min_length=1, max_length=300)
+    thumbnail_emotion_intensity: int = Field(ge=0, le=100)
+    video_emotion_intensity: int = Field(ge=0, le=100)
     sentiment_contradiction_detected: bool
     thematic_mismatch_detected: bool
     deception_risk_score: int = Field(ge=0, le=100)
@@ -197,6 +211,7 @@ class AnalyseRequest(BaseModel):
     thumbnail: MediaUpload
     video: MediaUpload | None = None
     consentToGoogleAnalysis: bool
+    creatorId: str | None = Field(None, pattern=CREATOR_ID_PATTERN)
 
     @field_validator("title", "description", "transcript", "region")
     @classmethod
@@ -220,6 +235,7 @@ class YouTubeCheckRequest(BaseModel):
     consentToGoogleAnalysis: bool
     # Analyse only the opening N seconds; None means the whole video.
     clipSeconds: int | None = Field(None, ge=10, le=20 * 60)
+    creatorId: str | None = Field(None, pattern=CREATOR_ID_PATTERN)
 
     @field_validator("url", "transcript", "region")
     @classmethod
@@ -268,6 +284,9 @@ class RedesignResult(BaseModel):
 class SentimentComparison(BaseModel):
     thumbnail: str
     video: str
+    # 0-100 emotional intensity, so the creator can see the size of the emotion gap.
+    thumbnailIntensity: int | None = Field(None, ge=0, le=100)
+    videoIntensity: int | None = Field(None, ge=0, le=100)
     contradiction: bool
     thematicMismatch: bool
 
@@ -310,6 +329,20 @@ class ThumbnailTruthResult(BaseModel):
     improvedTitle: str = ""
 
 
+class HistoryEntry(BaseModel):
+    """A short summary of one check, so a creator can compare revisions. No files are kept."""
+
+    id: str
+    checkedAt: str
+    title: str
+    source: Literal["upload", "youtube-link"]
+    band: Band
+    riskScore: int | None
+    emotionGap: int | None
+    sentimentContradiction: bool
+    ghostEntities: int
+
+
 class Sample(BaseModel):
     id: str
     label: str
@@ -321,6 +354,8 @@ class Sample(BaseModel):
     thumbnailText: str
     thumbnailTone: Literal["calm", "shock", "grief"]
     result: ThumbnailTruthResult
+    # Set on a reviewed fix of another sample, so the full fix-and-recheck loop can be shown.
+    revisionOf: str | None = None
 
 
 class Status(BaseModel):
@@ -333,6 +368,7 @@ class Status(BaseModel):
     imagenModel: str = ""
     translationEnabled: bool = False
     analyticsEnabled: bool = False
+    historyStorage: Literal["local", "firestore"] = "local"
 
 
 def band_for(score: int) -> Band:
@@ -408,6 +444,8 @@ def build_result(
         sentiment=SentimentComparison(
             thumbnail=sentiment.thumbnail_projected_sentiment,
             video=sentiment.actual_video_sentiment,
+            thumbnailIntensity=sentiment.thumbnail_emotion_intensity,
+            videoIntensity=sentiment.video_emotion_intensity,
             contradiction=sentiment.sentiment_contradiction_detected,
             thematicMismatch=sentiment.thematic_mismatch_detected,
         ),
@@ -469,6 +507,40 @@ def build_submission(
     return submission
 
 
+def without_broken_timestamps(text: str) -> str:
+    """Drop the timestamps, not the verdict, of evidence rows with an unusable time range.
+
+    A range with one end missing, a negative time, or an end at or before its start becomes
+    "no timestamp supplied". Times are only ever removed here, never adjusted or invented.
+    Anything that is not a JSON object is returned unchanged for strict validation to reject.
+    """
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        return text
+    rows = payload.get("evidence") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return text
+    dropped = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        start, end = row.get("startSec"), row.get("endSec")
+        if start is None and end is None:
+            continue
+        usable = (
+            isinstance(start, (int, float)) and isinstance(end, (int, float))
+            and not isinstance(start, bool) and not isinstance(end, bool)
+            and 0 <= start < end
+        )
+        if not usable:
+            row["startSec"] = row["endSec"] = None
+            dropped += 1
+    if dropped:
+        get_logger().warning("thumbnail_truth.timestamps_dropped", extra={"rows": dropped})
+    return json.dumps(payload)
+
+
 SCAN_TIMEOUT_MS: Final[int] = 60_000
 ScanT = TypeVar("ScanT", bound=BaseModel)
 
@@ -506,7 +578,8 @@ def run_scans(
                 response = client.models.generate_content(
                     model=settings.gemini_model, contents=parts, config=config(prompt, schema),
                 )
-                return schema.model_validate_json(response.text)
+                text = without_broken_timestamps(response.text) if schema is GhostEntityScan else response.text
+                return schema.model_validate_json(text)
             except Exception as exc:
                 retryable = (isinstance(exc, (ValidationError, TimeoutError))
                              or getattr(exc, "code", None) in (500, 502, 503, 504))
@@ -518,8 +591,11 @@ def run_scans(
         raise AssertionError("unreachable")
 
     try:
-        with build_client(**settings.ai_client_options) as client:
-            return scan(client, GHOST_ENTITY_PROMPT, GhostEntityScan), scan(client, SENTIMENT_PROMPT, SentimentScan)
+        # The scans are independent, so run them side by side: the wait is the slower scan, not both.
+        with build_client(**settings.ai_client_options) as client, ThreadPoolExecutor(max_workers=2) as pool:
+            ghost = pool.submit(scan, client, GHOST_ENTITY_PROMPT, GhostEntityScan)
+            sentiment = pool.submit(scan, client, SENTIMENT_PROMPT, SentimentScan)
+            return ghost.result(), sentiment.result()
     except Exception as exc:
         raise analysis_failure(exc, event="thumbnail_truth.scan_failed") from None
 
@@ -527,11 +603,12 @@ def run_scans(
 def _sample(
     sample_id: str, label: str, *, title: str, description: str, transcript: str, region: str,
     caption: str, text: str, tone: Literal["calm", "shock", "grief"],
-    ghost: dict[str, Any], sentiment: dict[str, Any],
+    ghost: dict[str, Any], sentiment: dict[str, Any], revision_of: str | None = None,
 ) -> Sample:
     return Sample(
         id=sample_id, label=label, title=title, description=description, transcript=transcript,
         region=region, thumbnailCaption=caption, thumbnailText=text, thumbnailTone=tone,
+        revisionOf=revision_of,
         result=build_result(
             GhostEntityScan(**{
                 "evidence": [{"promised": caption, "observed": transcript}],
@@ -566,6 +643,7 @@ SAMPLES: Final[tuple[Sample, ...]] = (
         sentiment={
             "thumbnail_projected_sentiment": "Warm, proud, calm",
             "actual_video_sentiment": "Calm, instructional, positive",
+            "thumbnail_emotion_intensity": 30, "video_emotion_intensity": 25,
             "sentiment_contradiction_detected": False, "thematic_mismatch_detected": False,
             "deception_risk_score": 6,
             "reasoning_summary": "The thumbnail promises a sourdough tutorial and the video delivers it "
@@ -598,6 +676,7 @@ SAMPLES: Final[tuple[Sample, ...]] = (
         sentiment={
             "thumbnail_projected_sentiment": "Panic and shock",
             "actual_video_sentiment": "Relaxed, practical how-to",
+            "thumbnail_emotion_intensity": 95, "video_emotion_intensity": 15,
             "sentiment_contradiction_detected": True, "thematic_mismatch_detected": True,
             "deception_risk_score": 88,
             "reasoning_summary": "The thumbnail implies a dangerous accident; the video is a calm "
@@ -630,6 +709,7 @@ SAMPLES: Final[tuple[Sample, ...]] = (
         sentiment={
             "thumbnail_projected_sentiment": "Intense grief and loss",
             "actual_video_sentiment": "Reflective and mildly disappointed",
+            "thumbnail_emotion_intensity": 90, "video_emotion_intensity": 35,
             "sentiment_contradiction_detected": True, "thematic_mismatch_detected": False,
             "deception_risk_score": 55,
             "reasoning_summary": "The topic matches, but 'I lost everything' and crying overstate a "
@@ -637,6 +717,37 @@ SAMPLES: Final[tuple[Sample, ...]] = (
             "creator_remediation_tip": "Use a thoughtful expression with text like 'Mixed results: "
                                        "what I'd change'.",
             "improved_title": "Mixed exam results: the revision habits I'd change",
+        },
+    ),
+    _sample(
+        "ghost-supercar-fixed", "Fixed: honest hatchback wash",
+        title="How I wash my hatchback with one shampoo",
+        description="A quick routine for washing a family hatchback with a single shampoo.",
+        transcript="Today we rinse the hatchback, foam it, and dry it with a microfibre towel.",
+        region="India",
+        caption="Presenter smiling beside a foam-covered hatchback", text="ONE-PRODUCT WASH",
+        tone="calm", revision_of="ghost-supercar",
+        ghost={
+            "promised_topics": ["hatchback wash"],
+            "actual_topics": ["hatchback wash"],
+            "evidence_status": "sufficient",
+            "thumbnail_entities": ["Presenter", "Hatchback", "Foam"],
+            "verified_in_video": ["Presenter", "Hatchback", "Foam"],
+            "ghost_entities_found": [], "visual_exaggeration_detected": False,
+            "exaggeration_details": "No composited flames, circles, or arrows.",
+            "alignment_score": 92,
+            "reasoning_summary": "The hatchback, foam, and presenter are all described in the "
+                                 "transcript; the overlay text matches the routine.",
+        },
+        sentiment={
+            "thumbnail_projected_sentiment": "Upbeat, practical",
+            "actual_video_sentiment": "Relaxed, practical how-to",
+            "thumbnail_emotion_intensity": 35, "video_emotion_intensity": 20,
+            "sentiment_contradiction_detected": False, "thematic_mismatch_detected": False,
+            "deception_risk_score": 8,
+            "reasoning_summary": "The thumbnail now promises the calm cleaning routine the video delivers.",
+            "creator_remediation_tip": "No change needed; the thumbnail reflects the video.",
+            "improved_title": "How I wash my hatchback with one shampoo",
         },
     ),
 )
@@ -663,10 +774,39 @@ def translated(
     )
 
 
+def remember(store: Store, creator_id: str, title: str, result: ThumbnailTruthResult) -> None:
+    """Keep the creator's last few check summaries, newest first, in one document."""
+    sentiment = result.sentiment
+    gap = (
+        abs(sentiment.thumbnailIntensity - sentiment.videoIntensity)
+        if sentiment.thumbnailIntensity is not None and sentiment.videoIntensity is not None else None
+    )
+    entry = HistoryEntry(
+        id=uuid4().hex, checkedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        title=title[:150], source="youtube-link" if result.youtubeVideo else "upload",
+        band=result.band, riskScore=result.riskScore, emotionGap=gap,
+        sentimentContradiction=sentiment.contradiction,
+        ghostEntities=sum(1 for item in result.ghostTracker if item.status == "ghost"),
+    )
+    saved = store.creator_checks.get(creator_id) or {}
+    checks = [entry.model_dump(), *saved.get("checks", [])][:HISTORY_LIMIT]
+    store.creator_checks.put(creator_id, {"creatorId": creator_id, "checks": checks})
+
+
 def finish(
     result: ThumbnailTruthResult, request_region: str, settings: Settings, background: BackgroundTasks,
+    *, store: Store, creator_id: str | None, title: str,
 ) -> ThumbnailTruthResult:
-    """Audit trail without creator content: outcome metadata to logs and BigQuery only."""
+    """Audit trail without creator content: outcome metadata to logs and BigQuery only.
+
+    With a creator id, a short summary also goes to that creator's own history.
+    """
+    if creator_id:
+        try:
+            remember(store, creator_id, title, result)
+        except Exception:
+            # History is a convenience; a storage failure must not discard a finished verdict.
+            get_logger().exception("thumbnail_truth.history_failed")
     ghosts = sum(1 for item in result.ghostTracker if item.status == "ghost")
     get_logger().info(
         "thumbnail_truth.analysed",
@@ -699,6 +839,7 @@ def status(settings: Settings = Depends(get_settings)) -> Status:
         imagenModel=settings.imagen_model,
         translationEnabled=translation_enabled(settings),
         analyticsEnabled=analytics_enabled(settings),
+        historyStorage=settings.storage,
     )
 
 
@@ -711,6 +852,7 @@ def samples() -> tuple[Sample, ...]:
 @router.post("/analyse", response_model=ThumbnailTruthResult)
 def analyse(
     request: AnalyseRequest, background: BackgroundTasks, settings: Settings = Depends(get_settings),
+    store: Store = Depends(get_store),
 ) -> ThumbnailTruthResult:
     """Check a draft thumbnail against its video evidence before publication."""
     if not request.consentToGoogleAnalysis:
@@ -734,12 +876,14 @@ def analyse(
     result = build_result(
         ghost, sentiment, source="gemini", model=settings.gemini_model, video_provided=video is not None
     ).model_copy(update={"translation": translation})
-    return finish(result, request.region, settings, background)
+    return finish(result, request.region, settings, background,
+                  store=store, creator_id=request.creatorId, title=request.title)
 
 
 @router.post("/analyse-youtube", response_model=ThumbnailTruthResult)
 def analyse_youtube(
     request: YouTubeCheckRequest, background: BackgroundTasks, settings: Settings = Depends(get_settings),
+    store: Store = Depends(get_store),
 ) -> ThumbnailTruthResult:
     """Check a published public YouTube video: its real thumbnail against the video itself."""
     if not request.consentToGoogleAnalysis:
@@ -782,7 +926,27 @@ def analyse_youtube(
         "translation": translation, "youtubeVideo": video,
         "analysedWindowSec": float(clip) if clip is not None else None,
     })
-    return finish(result, request.region, settings, background)
+    return finish(result, request.region, settings, background,
+                  store=store, creator_id=request.creatorId, title=video.title)
+
+
+def valid_creator_id(creator_id: str) -> str:
+    if not re.fullmatch(CREATOR_ID_PATTERN, creator_id):
+        raise HTTPException(422, "Invalid creator id")
+    return creator_id
+
+
+@router.get("/history/{creator_id}", response_model=list[HistoryEntry])
+def history(creator_id: str, store: Store = Depends(get_store)) -> list[dict[str, Any]]:
+    """This creator's recent check summaries, newest first."""
+    saved = store.creator_checks.get(valid_creator_id(creator_id)) or {}
+    return saved.get("checks", [])
+
+
+@router.delete("/history/{creator_id}", status_code=204)
+def forget_history(creator_id: str, store: Store = Depends(get_store)) -> None:
+    """Delete every stored check summary for this creator."""
+    store.creator_checks.delete(valid_creator_id(creator_id))
 
 
 @router.post("/youtube-preview", response_model=YouTubePreview)

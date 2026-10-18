@@ -49,11 +49,11 @@ describe('ConsentFeed scrolling', () => {
     render(<ConsentFeed items={[item]} fixtures={fixtures} busy={false} hasMore
       onNext={onNext} onOutcome={vi.fn()} />);
     expect(screen.getByRole('region', { name: 'Consent-protected synthetic feed' })).toHaveAttribute('tabindex', '0');
-    const compare = screen.getByRole('button', { name: 'Compare without Project Telos' });
+    const compare = screen.getByRole('button', { name: "Compare with today's algorithm feed" });
     expect(compare).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(compare);
-    expect(screen.getByRole('button', { name: 'Show my feed' })).toHaveAttribute('aria-pressed', 'true');
-    await userEvent.click(screen.getByRole('button', { name: 'Load next video' }));
+    expect(screen.getByRole('button', { name: 'Hide the algorithm feed' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Check next video' }));
     expect(onNext).toHaveBeenCalledOnce();
   });
 });

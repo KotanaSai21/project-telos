@@ -91,12 +91,12 @@ function JourneyHeader({
           <button type="button" aria-pressed={creator} className={creator ? 'is-selected' : ''}
             onClick={() => onMode('creator')}>
             <span aria-hidden="true">◎</span> Creator Studio
-            <small>Before publishing</small>
+            <small>For creators</small>
           </button>
           <button type="button" aria-pressed={!creator} className={!creator ? 'is-selected' : ''}
             onClick={() => onMode('viewer')}>
             <span aria-hidden="true">▷</span> Viewer feed
-            <small>Intent-first</small>
+            <small>For viewers</small>
           </button>
         </nav>
         <div className="journey-actions">
@@ -335,24 +335,32 @@ export function App() {
             <p className="eyebrow"><span className="eyebrow-dot" /> YOUR ATTENTION, ON YOUR TERMS</p>
             <h1 id="intent-title" tabIndex={-1}>What are you<br /><span>here for?</span></h1>
             <p className="intent-lede">
-              Start with your goal. Choose the topics you want and the boundaries your feed should respect.
+              Today's feeds decide for you, and the video is already playing before you can say no.
+              Project Telos starts with what you say you want, and checks every video before it reaches you.
             </p>
-            <div className="intent-proof">
-              <div className="promise-mini">
-                <span className="promise-mini-label">YOUR TOPICS</span>
-                <span className="promise-mini-title">What you came for.</span>
-                <span className="promise-mini-topic"><i /> Declared, not inferred</span>
-              </div>
-              <div className="promise-path" aria-hidden="true">
-                <span className="promise-path-line" />
-                <span className="promise-path-node">→</span>
-                <span className="promise-path-label">match</span>
-              </div>
-              <div className="promise-mini promise-mini-alert">
-                <span className="promise-mini-label">YOUR BOUNDARIES</span>
-                <span className="promise-mini-title">A separate check.</span>
-                <span className="promise-mini-topic"><i /> Filter or hold</span>
-              </div>
+            <div className="feed-contrast" aria-label="How Project Telos differs from today's feeds">
+              <section className="feed-contrast-side is-today">
+                <span className="feed-contrast-label">TODAY'S ALGORITHM FEED</span>
+                <strong>Decided by signals you never chose</strong>
+                <ul>
+                  <li>Your watch history and past clicks</li>
+                  <li>How long people linger (dwell time)</li>
+                  <li>What keeps everyone else watching</li>
+                  <li>Trends and paid promotion</li>
+                </ul>
+                <p className="feed-contrast-outcome"><b>▶</b> It plays first. You can only avoid it after you've seen it.</p>
+              </section>
+              <section className="feed-contrast-side is-telos">
+                <span className="feed-contrast-label">PROJECT TELOS</span>
+                <strong>Decided by what you say you're here for</strong>
+                <ul>
+                  <li>Your goal and topics, declared, not inferred</li>
+                  <li>Your boundaries, checked separately</li>
+                  <li>Every video is understood before it is shown</li>
+                  <li>Nothing plays until you choose</li>
+                </ul>
+                <p className="feed-contrast-outcome"><b>✓</b> It checks first. You decide what reaches you.</p>
+              </section>
             </div>
             <div className="honest-labels">
               <span><b /> Synthetic playback demo</span>
@@ -628,32 +636,28 @@ export function App() {
           <div className="creator-hero">
             <div className="creator-hero-copy">
               <p className="eyebrow"><span className="eyebrow-dot" /> CREATOR STUDIO · BEFORE YOU PUBLISH</p>
-              <h1 id="creator-title" tabIndex={-1}>Make sure your thumbnail<br /><span>matches your video.</span></h1>
-              <p className="experience-subtitle">
-                Check the promise your thumbnail makes against the video behind it. Catch mismatched images,
-                exaggerated hooks, and tone before your audience sees them.
+              <h1 id="creator-title" tabIndex={-1}>Does your thumbnail<br /><span>keep its promise?</span></h1>
+              <p className="creator-why">
+                <strong>Why it matters:</strong> viewers who feel tricked by a thumbnail click away and stop
+                trusting the channel. Catch the mismatch before you publish, not after.
               </p>
-              <ol className="creator-pipeline" aria-label="How the check works">
-                <li><b>01</b><span>Add your thumbnail</span><small>Include the title and a transcript or video</small></li>
-                <li><b>02</b><span>Compare the promise</span><small>Check entities, visuals, tone, and topic</small></li>
-                <li><b>03</b><span>Review the result</span><small>See evidence and practical fixes</small></li>
-              </ol>
+              <dl className="creator-diff" aria-label="How this is different">
+                <div>
+                  <dt>Thumbnail tools today</dt>
+                  <dd>Help you win the click: A/B tests and click-through predictions.</dd>
+                </div>
+                <div className="is-ours">
+                  <dt>Project Telos</dt>
+                  <dd>Checks you keep the promise: Gemini compares the feeling, objects, and topic on your
+                    thumbnail with evidence from the video, then shows you what to change.</dd>
+                </div>
+              </dl>
             </div>
-            <ul className="creator-pillars" aria-label="What the creator check looks for">
-              <li><span aria-hidden="true">👻</span><strong>Ghost entities</strong><small>Shown on the thumbnail, never in the video.</small></li>
-              <li><span aria-hidden="true">⭕</span><strong>Visual exaggeration</strong><small>Fake arrows, circles, explosions, scale tricks.</small></li>
-              <li><span aria-hidden="true">🎭</span><strong>Sentiment contradiction</strong><small>Terror on the thumbnail, calm in the script.</small></li>
-              <li><span aria-hidden="true">🧭</span><strong>Thematic mismatch</strong><small>A different genre than the video delivers.</small></li>
-              <li className="creator-score-card">
-                <span aria-hidden="true">◎</span><strong>What the risk score means</strong>
-                <small>
-                  The rounded average of visual and sentiment risk, plus 10 if any ghost entity is found
-                  and 5 for each other detected pattern (visual exaggeration, sentiment contradiction,
-                  thematic mismatch), capped at 100. 0–30: safe · 31–65: review · 66–100: high risk.
-                  It is a heuristic, not a probability or a platform decision.
-                </small>
-              </li>
-            </ul>
+            <ol className="creator-pipeline" aria-label="How the check works">
+              <li><b>01</b><span>See an example</span><small>One click, no upload needed</small></li>
+              <li><b>02</b><span>Check your own</span><small>Thumbnail + video, or a YouTube link</small></li>
+              <li><b>03</b><span>Fix and recheck</span><small>Honest title and an Imagen thumbnail</small></li>
+            </ol>
           </div>
           <ThumbnailTruth />
         </section>
@@ -661,13 +665,14 @@ export function App() {
 
       <footer className="journey-footer">
         <span>PROJECT TELOS <i>·</i> {creator ? 'MAKE THE THUMBNAIL MATCH THE VIDEO' : 'KEEP THE PROMISE, BEFORE AND AFTER UPLOAD'}</span>
-        {!creator && <>
+        {!creator && (
           <span>
             {health?.uses_model_calls ? 'Gemini profile configured' : 'Offline phrase matching'}
             {' · '}YouTube search: {youtube?.searchConfigured ? 'live' : 'paste links only'}
             {' · '}Controlled story: reviewed fixtures
           </span>
-          {health?.integrations && (
+        )}
+        {health?.integrations && (
           <span className="footer-integrations" aria-label="Google Cloud integrations">
             {Object.entries(INTEGRATION_LABELS).map(([key, label]) => (
               <span key={key} className={health.integrations?.[key] === true ? 'is-on' : ''}>
@@ -678,8 +683,7 @@ export function App() {
               {health.integrations.storage === 'firestore' ? '● Firestore' : '○ Firestore (local JSON)'}
             </span>
           </span>
-          )}
-        </>}
+        )}
       </footer>
     </main>
   );

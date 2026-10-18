@@ -6,6 +6,7 @@ import type {
   ProjectTelosReceipt,
   ThumbnailRedesignRequest,
   ThumbnailRedesignResult,
+  ThumbnailTruthHistoryEntry,
   ThumbnailTruthRequest,
   ThumbnailTruthResult,
   ThumbnailTruthSample,
@@ -77,6 +78,10 @@ export const api = {
     request<ThumbnailTruthYouTubePreview>('/project-telos/thumbnail-truth/youtube-preview', {
       method: 'POST', body: JSON.stringify({ url }), signal,
     }),
+  thumbnailTruthHistory: (creatorId: string) =>
+    request<ThumbnailTruthHistoryEntry[]>(`/project-telos/thumbnail-truth/history/${encodeURIComponent(creatorId)}`),
+  thumbnailTruthForgetHistory: (creatorId: string) =>
+    request<void>(`/project-telos/thumbnail-truth/history/${encodeURIComponent(creatorId)}`, { method: 'DELETE' }),
   thumbnailTruthRedesign: (submission: ThumbnailRedesignRequest) =>
     request<ThumbnailRedesignResult>('/project-telos/thumbnail-truth/redesign', {
       method: 'POST', body: JSON.stringify(submission),

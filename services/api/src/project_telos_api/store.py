@@ -148,6 +148,8 @@ class Store:
         self.project_telos_items = collection_factory("project_telos_items")
         self.youtube_searches = collection_factory("youtube_searches")
         self.youtube_analyses = collection_factory("youtube_analyses")
+        # Creator Studio: one document per anonymous creator id with recent check summaries.
+        self.creator_checks = collection_factory("creator_checks")
 
     def save_profile(self, profile: dict[str, Any]) -> dict[str, Any]:
         assert_valid("ConsentProfile", profile)
@@ -198,5 +200,6 @@ class Store:
         self.decisions.clear()
         self.receipt.clear()
         self.project_telos_items.clear()
+        self.creator_checks.clear()
         self.youtube_searches.clear()
         self.youtube_analyses.clear()

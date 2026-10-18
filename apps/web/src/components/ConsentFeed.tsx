@@ -54,9 +54,9 @@ export function ConsentFeed({ items, fixtures, busy, hasMore, onNext, onOutcome 
   return (
     <section className={`consent-feed ${compare ? 'show-comparison' : ''}`}>
       <div className="feed-toolbar">
-        <div><strong>One intent. Every item.</strong><span>Scroll, swipe, or use the next-item button.</span></div>
+        <div><strong>Understood before you watch.</strong><span>Every video is checked against your intent first; you decide what plays.</span></div>
         <button type="button" className="project-telos-button secondary" aria-pressed={compare}
-          onClick={() => setCompare(!compare)}>{compare ? 'Show my feed' : 'Compare without Project Telos'}</button>
+          onClick={() => setCompare(!compare)}>{compare ? 'Hide the algorithm feed' : "Compare with today's algorithm feed"}</button>
       </div>
       <div ref={root} className="feed-viewport" tabIndex={0} role="region" aria-label="Consent-protected synthetic feed">
         {items.map((item) => {
@@ -65,7 +65,7 @@ export function ConsentFeed({ items, fixtures, busy, hasMore, onNext, onOutcome 
           return (
             <article key={item.itemId} data-feed-item={item.itemId} className="feed-card">
               <ProjectTelosComparison fixture={fixture} item={item} busy={busy}
-                active={activeId === item.itemId}
+                active={activeId === item.itemId} showBefore={compare}
                 onHeld={() => onOutcome(item, 'held')}
                 onReframe={() => onOutcome(item, 'reframed')} />
               <p className="feed-card-note">
@@ -76,9 +76,9 @@ export function ConsentFeed({ items, fixtures, busy, hasMore, onNext, onOutcome 
         })}
         {hasMore && (
           <div data-feed-next className="feed-next">
-            <p>Your boundaries apply to the next video, too.</p>
+            <p>Project Telos checks the next video against your intent first. Nothing plays until you choose.</p>
             <button type="button" className="project-telos-button" disabled={busy} onClick={onNext}>
-              {busy ? 'Checking next item…' : 'Load next video'}
+              {busy ? 'Checking next video…' : 'Check next video'}
             </button>
             <p>Skipping does not mark an unresolved item as completed.</p>
           </div>

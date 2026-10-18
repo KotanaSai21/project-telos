@@ -580,7 +580,7 @@ a:focus-visible {
 }
 
 .intent-lede {
-  max-width: 420px;
+  max-width: 560px;
   margin: 22px 0 0;
   color: rgb(var(--c-a8b2ae));
   font-size: 15px;
@@ -1698,6 +1698,17 @@ a:focus-visible {
   gap: clamp(28px, 5vw, 64px);
 }
 
+.creator-hero .creator-pipeline {
+  grid-template-columns: 1fr;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .creator-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
 .creator-pipeline {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1789,6 +1800,205 @@ a:focus-visible {
   display: grid;
   gap: 18px;
   margin-top: 30px;
+}
+
+/* Sentiment contradiction explainer: the feeling a thumbnail sells vs. the one the video delivers. */
+.tt-explainer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 18px 28px;
+  border: 1px solid rgb(var(--c-baff6a) / 28%);
+  border-radius: 18px;
+  padding: 22px;
+  background:
+    linear-gradient(150deg, rgb(var(--c-baff6a) / 7%), transparent 55%),
+    var(--surface);
+}
+
+.tt-explainer-copy {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 12px;
+}
+
+.tt-explainer-copy h2 {
+  margin: 0;
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 560;
+  letter-spacing: -0.04em;
+}
+
+.tt-explainer-copy p:not(.eyebrow) {
+  margin: 0;
+  color: rgb(var(--c-d5dcd8));
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.tt-explainer-demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.tt-explainer-side {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.tt-explainer-side figcaption,
+.tt-emotion-rows > div:not(.tt-explainer-gap) {
+  display: grid;
+  gap: 2px;
+}
+
+.tt-explainer-side figcaption small,
+.tt-emotion-rows small {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tt-explainer-side figcaption strong,
+.tt-emotion-rows strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tt-explainer-gap {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: var(--coral);
+}
+
+.tt-explainer-gap span {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.tt-explainer-gap small {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.tt-explainer-also {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.tt-explainer-also ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-explainer-also li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tt-explainer-also li strong {
+  color: rgb(var(--c-f0f1e9));
+  font-weight: 600;
+}
+
+.tt-explainer-also summary {
+  color: var(--acid);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tt-emotion-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(var(--c-d3e8dd) / 10%);
+}
+
+.tt-emotion-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--mint), var(--coral));
+}
+
+.tt-emotion-bar b {
+  position: absolute;
+  top: -18px;
+  right: 0;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.tt-emotion {
+  margin-top: 18px;
+}
+
+.tt-emotion.is-on {
+  border-color: rgb(var(--c-ff9379) / 45%);
+}
+
+.tt-emotion-verdict {
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: rgb(var(--c-6be59a) / 14%);
+}
+
+.tt-emotion.is-on .tt-emotion-verdict {
+  background: rgb(var(--c-ff9379) / 16%);
+  color: var(--coral);
+}
+
+.tt-emotion-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 16px;
+}
+
+.tt-emotion-rows .tt-emotion-bar {
+  margin-top: 22px;
+}
+
+.tt-verdict {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .tt-explainer {
+    grid-template-columns: 1fr;
+  }
+
+  .tt-explainer-demo,
+  .tt-emotion-rows {
+    grid-template-columns: 1fr;
+  }
+
+  .tt-explainer-gap {
+    justify-items: start;
+  }
 }
 
 .viewer-goals {
@@ -2442,11 +2652,8 @@ a:focus-visible {
   color: var(--muted);
 }
 
-.tt-rationale {
-  margin-top: 12px;
-}
-
-.tt-rationale ol {
+.tt-rationale-list,
+.tt-fixes ol {
   display: grid;
   gap: 8px;
   margin: 0;
@@ -2914,4 +3121,340 @@ a:focus-visible {
 /* The demo feed drives these players; clicks would desync them from the playhead. */
 .project-telos-scene.has-video .yt-player-frame {
   pointer-events: none;
+}
+
+/* Before vs. after a revision: the payoff of the fix-and-recheck loop. */
+.tt-recheck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+  border: 1px solid rgb(var(--c-baff6a) / 30%);
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: var(--surface);
+}
+
+.tt-recheck-side {
+  display: grid;
+  gap: 2px;
+  border-left: 4px solid var(--band);
+  padding-left: 12px;
+}
+
+.tt-recheck-side small {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tt-recheck-side strong {
+  color: var(--band);
+  font-size: 34px;
+  font-weight: 560;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.tt-recheck-side span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-recheck-arrow {
+  color: var(--muted);
+  font-size: 24px;
+}
+
+.tt-recheck p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tt-recheck p.is-better { color: rgb(var(--c-6be59a)); }
+.tt-recheck p.is-worse { color: var(--coral); }
+
+.tt-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tt-history {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-history li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--band);
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: var(--surface-raised);
+}
+
+.tt-history-score {
+  grid-row: span 2;
+  min-width: 2.2em;
+  color: var(--band);
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.tt-history-title {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-history small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+@media (max-width: 760px) {
+  .tt-recheck {
+    grid-template-columns: 1fr;
+  }
+
+  .tt-recheck-arrow {
+    transform: rotate(90deg);
+  }
+}
+
+/* Creator hero: why it matters, and how it differs from thumbnail tools. */
+.creator-why {
+  max-width: 620px;
+  margin: 16px 0 0;
+  color: rgb(var(--c-d5dcd8));
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.creator-why strong {
+  color: var(--acid);
+  font-weight: 600;
+}
+
+.creator-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 620px;
+  margin: 16px 0 0;
+}
+
+.creator-diff div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 13px;
+  background: rgb(var(--c-111820) / 70%);
+}
+
+.creator-diff div.is-ours {
+  border-color: rgb(var(--c-baff6a) / 40%);
+}
+
+.creator-diff dt {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.creator-diff .is-ours dt {
+  color: var(--acid);
+}
+
+.creator-diff dd {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .creator-diff {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Results: the score sits beside its evidence, then concrete fixes. */
+.tt-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.tt-summary .tt-proof {
+  margin-top: 16px;
+}
+
+.tt-source-banner {
+  margin: 12px 0 0;
+  border: 1px solid rgb(var(--c-f7c97a) / 40%);
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: rgb(var(--c-f7c97a) / 8%);
+  font-size: 12px;
+}
+
+.tt-source-banner strong {
+  color: rgb(var(--c-f7c97a));
+}
+
+.tt-source-banner.is-live {
+  border-color: rgb(var(--c-baff6a) / 40%);
+  background: rgb(var(--c-baff6a) / 7%);
+}
+
+.tt-source-banner.is-live strong {
+  color: var(--acid);
+}
+
+.tt-fixes {
+  margin-top: 12px;
+  border-color: rgb(var(--c-baff6a) / 35%);
+}
+
+.tt-fix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 760px) {
+  .tt-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Viewer feed: the verdict is shown before any video loads. */
+.precheck-card {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  text-align: left;
+}
+
+.precheck-kicker {
+  margin: 0;
+  color: var(--acid);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.precheck-title {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.precheck-detail {
+  max-width: 440px;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Viewer intent page: today's algorithm feed vs. an intent-first feed. */
+.feed-contrast {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 620px;
+  margin-top: 34px;
+}
+
+.feed-contrast-side {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  background: linear-gradient(145deg, rgb(var(--c-ffffff) / 5%), rgb(var(--c-ffffff) / 1%));
+}
+
+.feed-contrast-side.is-today {
+  border-color: rgb(var(--c-ff9379) / 30%);
+  background: linear-gradient(145deg, rgb(var(--c-ff9379) / 9%), rgb(var(--c-ffffff) / 1%));
+}
+
+.feed-contrast-side.is-telos {
+  border-color: rgb(var(--c-baff6a) / 35%);
+  background: linear-gradient(145deg, rgb(var(--c-baff6a) / 8%), rgb(var(--c-ffffff) / 1%));
+}
+
+.feed-contrast-label {
+  color: var(--coral);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.is-telos .feed-contrast-label {
+  color: var(--acid);
+}
+
+.feed-contrast-side strong {
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.35;
+}
+
+.feed-contrast-side ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  list-style: disc;
+}
+
+.feed-contrast-outcome {
+  margin: 4px 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.feed-contrast-outcome b {
+  margin-right: 4px;
+  color: var(--coral);
+}
+
+.is-telos .feed-contrast-outcome b {
+  color: var(--acid);
+}
+
+@media (max-width: 760px) {
+  .feed-contrast {
+    grid-template-columns: 1fr;
+  }
 }

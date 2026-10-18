@@ -13,6 +13,7 @@ vi.mock('./api/client', () => ({
     youtubeStatus: vi.fn(), youtubeSearch: vi.fn(), youtubeAnalyse: vi.fn(), youtubeLink: vi.fn(),
     thumbnailTruthStatus: vi.fn(), thumbnailTruthSamples: vi.fn(), thumbnailTruthAnalyse: vi.fn(),
     thumbnailTruthAnalyseYoutube: vi.fn(), thumbnailTruthRedesign: vi.fn(), thumbnailTruthYoutubePreview: vi.fn(),
+    thumbnailTruthHistory: vi.fn(), thumbnailTruthForgetHistory: vi.fn(),
     viewerPreferences: vi.fn(),
   },
 }));
@@ -58,6 +59,7 @@ beforeEach(() => {
   vi.mocked(api.thumbnailTruthStatus).mockResolvedValue({
     liveConfigured: false, model: 'test-model', maxThumbnailBytes: 1, maxVideoBytes: 1, note: 'Offline',
   });
+  vi.mocked(api.thumbnailTruthHistory).mockResolvedValue([]);
   vi.mocked(api.thumbnailTruthSamples).mockResolvedValue([]);
   vi.mocked(api.projectTelosFixtures).mockResolvedValue(
     ['aviation', 'cooking', 'diy-switch'].map((id) => ({
@@ -334,10 +336,13 @@ describe('Project Telos journey', () => {
   it('lands on the creator check and switches to the viewer journey and back', async () => {
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: /Make sure your thumbnail/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Does your thumbnail/ })).toBeInTheDocument();
     expect(screen.getByTestId('thumbnail-truth')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Creator Studio/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText(/What the risk score means/)).toBeInTheDocument();
+    expect(screen.getByText(/How is the 0–100 risk score calculated/)).toBeInTheDocument();
+    expect(screen.getByText(/Why it matters:/)).toBeInTheDocument();
+    expect(screen.getByText('Project Telos', { selector: 'dt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Viewer feed.*For viewers/ })).toBeInTheDocument();
     expect(screen.queryByText(/Grounded in/)).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Demo journey' })).not.toBeInTheDocument();
     expect(api.declare).not.toHaveBeenCalled();
@@ -345,9 +350,12 @@ describe('Project Telos journey', () => {
     await userEvent.click(screen.getByRole('button', { name: /Viewer feed/ }));
     expect(await screen.findByRole('heading', { name: /What are you/, level: 1 })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Demo journey' })).toBeInTheDocument();
+    expect(screen.getByText("TODAY'S ALGORITHM FEED")).toBeInTheDocument();
+    expect(screen.getByText(/It plays first\. You can only avoid it after you've seen it\./)).toBeInTheDocument();
+    expect(screen.getByText(/It checks first\. You decide what reaches you\./)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /Creator Studio/ }));
-    expect(await screen.findByRole('heading', { name: /Make sure your thumbnail/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Does your thumbnail/ })).toBeInTheDocument();
   });
 
   it('toggles and remembers the colour theme', async () => {

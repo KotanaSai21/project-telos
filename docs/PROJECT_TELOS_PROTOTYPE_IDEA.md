@@ -127,7 +127,7 @@ not covered by that simulation guarantee.
    from live Gemini analysis.
 3. **Explain and improve.** Identify the mismatch and timestamp, show the Bait
    pattern with its limitations, and suggest an honest thumbnail/title revision.
-   The creator UI uses the fused **Deception Risk** score, not the separate
+   The creator UI uses the fused **mismatch risk** score, not the separate
    deterministic fixture Bait Index. Show timestamps only when available in the
    supplied evidence; reviewed text-only samples do not invent timestamps.
    Let the creator revise the title/thumbnail and approve a fresh live check.
@@ -296,6 +296,7 @@ multimodal AI performance follows from manually reviewed fixture timelines.
 | `POST /project-telos/thumbnail-truth/analyse` | Consented pre-upload check of a draft thumbnail against its video |
 | `POST /project-telos/thumbnail-truth/analyse-youtube` | Consented check of a published video's actual thumbnail and public URL |
 | `POST /project-telos/thumbnail-truth/redesign` | Imagen thumbnail suggestion; explicitly rechecked before claiming improvement |
+| `GET/DELETE /project-telos/thumbnail-truth/history/{creatorId}` | A creator's last ten check summaries (title, band, score, emotion gap), keyed by an anonymous browser id |
 
 ### Primary creator experience: ThumbnailTruth
 
@@ -310,11 +311,13 @@ question and keeping its evidence and suggestions out of the viewer feed:
    `PROJECT_TELOS_GEMINI_MODEL`, and one misleading plus one honest reference example:
    - **Ghost entity / visual exaggeration:** thumbnail entities vs. video evidence,
      alignment score 0-100.
-   - **Sentiment / thematic contradiction:** projected vs. actual tone, risk 0-100,
+   - **Sentiment / thematic contradiction:** projected vs. actual tone, the 0-100
+     emotional intensity of each (shown to the creator as an "emotion gap"), risk 0-100,
      and a single remediation tip.
-3. The API validates both outputs and fuses them into a Deception Risk score:
+3. The API validates both outputs and fuses them into a mismatch risk score:
    `average(100 − alignment, sentiment risk)` plus fixed pattern penalties, capped at
-   100. The UI shows bands of 0-30 safe, 31-65 review, and 66-100 held.
+   100. The UI shows bands of 0-30 "matches", 31-65 "worth a look", and 66-100 "strong
+   mismatch", worded as review signals rather than proof of intent.
 4. With insufficient evidence, the result is "unverified" with no score.
    Offline mode shows only reviewed samples.
 

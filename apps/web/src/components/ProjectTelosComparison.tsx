@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 
 import { DEMO_CLIPS, type DemoClip } from '../api/samples';
 import type { ProjectTelosFixture, ProjectTelosItem } from '../api/types';
@@ -43,12 +43,21 @@ interface Props {
   item: ProjectTelosItem;
   busy: boolean;
   active?: boolean;
+  /** Show the unprotected "Before" side. Hidden, it loads no player at all. */
+  showBefore?: boolean;
   onHeld: () => void;
   onReframe: () => void;
 }
 
-/** Paired synthetic playheads isolate the intervention from feed selection. */
-export function ProjectTelosComparison({ fixture, item, busy, active = true, onHeld, onReframe }: Props) {
+/**
+ * Understand before experience: the item is analysed before this card renders, the viewer
+ * sees that verdict first, and no video loads or plays until they choose to watch.
+ * Paired synthetic playheads isolate the intervention from feed selection.
+ */
+export function ProjectTelosComparison({
+  fixture, item, busy, active = true, showBefore = false, onHeld, onReframe,
+}: Props) {
+  const [started, setStarted] = useState(false);
   const ranges = useMemo(() => {
     if (item.status === 'allowed') return [];
     return [{ startSec: item.holdAtSec > 0 ? item.holdAtSec + 1 : 0, endSec: fixture.durationSec }];
@@ -72,6 +81,14 @@ export function ProjectTelosComparison({ fixture, item, busy, active = true, onH
     // Delay startup so StrictMode's setup/cleanup replay cannot kill the active timers.
     const timer = window.setTimeout(() => {
       const current = playback.current;
+      if (!started) {
+        // A hold at 0:00 needs no playback: record it now, before anything is shown.
+        if (current.item.status === 'protected' && current.item.holdAtSec === 0 && !reported.current) {
+          reported.current = true;
+          onHeldRef.current();
+        }
+        return;
+      }
       if (current.before.state !== 'ended') current.before.play();
       if (current.after.state !== 'ended' && (current.item.status === 'allowed' ||
         (current.item.status === 'protected' && current.item.holdAtSec > 0 && !current.held))) {
@@ -86,7 +103,7 @@ export function ProjectTelosComparison({ fixture, item, busy, active = true, onH
       playback.current.before.pause();
       playback.current.after.pause();
     };
-  }, [active]);
+  }, [active, started]);
 
   useEffect(() => {
     if (after.state === 'gated' && !reported.current) {
@@ -100,6 +117,29 @@ export function ProjectTelosComparison({ fixture, item, busy, active = true, onH
   );
   const waitingAtStart = item.status === 'protected' && item.holdAtSec === 0;
   const showHold = held || waitingAtStart;
+  // Nothing to watch: filtered or held at the start, or already replaced by a summary.
+  const blocked = waitingAtStart || (item.holdAtSec === 0 && held) || item.status === 'reframed';
+  const offTopic = item.topicMatch?.status === 'off-topic';
+
+  const precheck = (
+    <div className="precheck-card" role="status">
+      <p className="precheck-kicker">✓ Checked before you watch</p>
+      <p className="precheck-title">
+        {item.status === 'allowed'
+          ? 'Matches your intent'
+          : `The first ${formatTimecode(item.holdAtSec)} fits your intent`}
+      </p>
+      <p className="precheck-detail">
+        {item.status === 'allowed'
+          ? 'Project Telos looked at this video against your topics and boundaries. Nothing has loaded yet.'
+          : `After that the video turns into something you didn't ask for. Project Telos will stop at ${formatTimecode(item.holdAtSec)}, before it does.`}
+      </p>
+      <button type="button" className="project-telos-button mt-4" disabled={busy}
+        onClick={() => setStarted(true)}>
+        {item.status === 'allowed' ? 'Watch' : `Watch the first ${formatTimecode(item.holdAtSec)}`}
+      </button>
+    </div>
+  );
 
   const holdCard = (
     <div role="status">
@@ -125,16 +165,16 @@ export function ProjectTelosComparison({ fixture, item, busy, active = true, onH
 
   return (
     <div className="comparison-layout grid gap-5 lg:grid-cols-2">
-      <article className="project-telos-panel before-panel">
+      {showBefore && <article className="project-telos-panel before-panel">
         <header className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-slate-300">Before / attention feed</h3>
-          <span className="project-telos-pill text-amber-300">No interception</span>
+          <h3 className="text-sm font-medium text-slate-300">Today's algorithm feed</h3>
+          <span className="project-telos-pill text-amber-300">Plays first, no check</span>
         </header>
         <h4 className="mt-5 text-xl font-medium">{fixture.title}</h4>
         <p className="mt-2 text-xs text-slate-400">{fixture.hook}</p>
         <div data-testid="before-scene" data-switched={switched}
-          className={`project-telos-scene mt-5 ${clip ? 'has-video' : ''} ${switched ? 'project-telos-scene-switched' : ''}`}>
-          {clip ? <>
+          className={`project-telos-scene mt-5 ${clip && started ? 'has-video' : ''} ${switched ? 'project-telos-scene-switched' : ''}`}>
+          {clip && started ? <>
             {player(beforePlayer, syncBefore)}
             {switched && <div className="scene-overlay is-switch">
               <span className="text-4xl" aria-hidden="true">!</span>
@@ -144,7 +184,7 @@ export function ProjectTelosComparison({ fixture, item, busy, active = true, onH
           </> : <>
             <span className="text-5xl" aria-hidden="true">{switched ? '!' : '+'}</span>
             <p className="mt-4 text-lg">{switched ? 'Unrelated incident placeholder' : fixture.promiseTopics.join(' / ')}</p>
-            <p className="mt-2 text-xs text-slate-300">{switched ? 'Unfiltered synthetic playback' : 'Synthetic scene / autoplay simulation'}</p>
+            <p className="mt-2 text-xs text-slate-300">{switched ? 'Unfiltered synthetic playback' : started ? 'Synthetic scene / autoplay simulation' : 'Starts with your feed when you press Watch'}</p>
           </>}
         </div>
         {clip && <p className="scene-credit">Footage: {clip.credit} (YouTube, muted)</p>}
@@ -153,21 +193,22 @@ export function ProjectTelosComparison({ fixture, item, busy, active = true, onH
           <span data-testid="before-time" className="font-mono">{formatTimecode(before.currentTime)}</span>
         </div>
         <div className="mt-3 h-1 rounded bg-slate-800"><div className="h-1 rounded bg-amber-300" style={{ width: `${before.progress * 100}%` }} /></div>
-      </article>
+      </article>}
 
       <article className="project-telos-panel project-telos-panel-protected">
         <header className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-medium text-teal-200">After / PROJECT TELOS feed</h3>
+          <h3 className="text-sm font-medium text-teal-200">Project Telos · checked first</h3>
           <span className="project-telos-pill text-teal-300">
             {item.status === 'reframed' ? 'Reframed'
-              : item.topicMatch?.status === 'off-topic' ? 'Filtered from your feed'
+              : offTopic ? 'Filtered from your feed'
+              : !started && !blocked ? 'Checked · not playing'
               : item.status === 'allowed' ? 'Matches your intent' : showHold ? 'Held' : 'Protected preview'}
           </span>
         </header>
         <h4 className="mt-5 text-xl font-medium">{fixture.title}</h4>
         <p className="mt-2 text-xs text-slate-400">{fixture.hook}</p>
         <div data-testid="project-telos-scene" data-held={showHold}
-          className={`project-telos-scene mt-5 ${clip && item.status !== 'reframed' ? 'has-video' : ''}`}>
+          className={`project-telos-scene mt-5 ${clip && started && !blocked ? 'has-video' : ''}`}>
           {item.status === 'reframed' ? (
             <div className="w-full text-left">
               <img src={item.illustration} alt="Neutral abstract illustration accompanying the summary"
@@ -176,7 +217,9 @@ export function ProjectTelosComparison({ fixture, item, busy, active = true, onH
               <p className="mt-2 text-sm leading-6 text-slate-200">{item.summary}</p>
               <p className="mt-3 text-[10px] text-slate-400">{item.summaryBy} · {item.illustrationBy}</p>
             </div>
-          ) : clip ? <>
+          ) : blocked || (showHold && !started) ? holdCard
+          : !started ? precheck
+          : clip ? <>
             {player(afterPlayer, syncAfter)}
             {showHold && <div className="scene-overlay is-hold">{holdCard}</div>}
           </> : showHold ? holdCard : (

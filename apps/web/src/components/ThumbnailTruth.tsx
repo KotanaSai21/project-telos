@@ -7,6 +7,7 @@ import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import type {
   MediaUpload,
   ThumbnailRedesignResult,
+  ThumbnailTruthHistoryEntry,
   ThumbnailTruthResult,
   ThumbnailTruthSample,
   ThumbnailTruthStatus,
@@ -24,6 +25,28 @@ const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 const GAUGE_RADIUS = 52;
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
+
+const CREATOR_KEY = 'project-telos-creator-id';
+
+/** An anonymous id kept in this browser so a creator can see their own recent checks. Not an account. */
+function creatorIdentity(): string | null {
+  try {
+    const saved = localStorage.getItem(CREATOR_KEY);
+    if (saved) return saved;
+    const created = `creator-${crypto.randomUUID()}`;
+    localStorage.setItem(CREATOR_KEY, created);
+    return created;
+  } catch {
+    return null;
+  }
+}
+
+/** The score a revision started from, so a fresh check can show the change. */
+interface Baseline {
+  score: number;
+  band: ThumbnailTruthResult['band'];
+  title: string;
+}
 
 interface PickedFile {
   name: string;
@@ -92,8 +115,8 @@ function RiskGauge({ result }: { result: ThumbnailTruthResult }) {
   return (
     <div className={`tt-gauge band-${result.band}`} role="img"
       aria-label={result.riskScore === null
-        ? 'Deception risk not scored: insufficient evidence'
-        : `Deception risk ${result.riskScore} out of 100: ${result.bandLabel}`}>
+        ? 'Mismatch risk not scored: insufficient evidence'
+        : `Mismatch risk ${result.riskScore} out of 100: ${result.bandLabel}`}>
       <svg viewBox="0 0 120 120" aria-hidden="true">
         <circle cx="60" cy="60" r={GAUGE_RADIUS} className="tt-gauge-track" />
         <circle cx="60" cy="60" r={GAUGE_RADIUS} className="tt-gauge-value"
@@ -115,6 +138,111 @@ function SampleThumbnail({ sample }: { sample: ThumbnailTruthSample }) {
       <span className="tt-sample-thumb-text">{sample.thumbnailText}</span>
       <span className="tt-sample-thumb-caption">{sample.thumbnailCaption}</span>
     </div>
+  );
+}
+
+const SCORE_HELP = 'The rounded average of visual and sentiment risk, plus 10 if any ghost entity is found '
+  + 'and 5 for each other detected pattern (visual exaggeration, sentiment contradiction, thematic mismatch), '
+  + 'capped at 100. 0–30 safe · 31–65 review · 66–100 high risk. A heuristic, not a probability or a platform decision.';
+
+/** The core idea in one picture: the feeling a thumbnail sells vs. the feeling the video delivers. */
+function ContradictionExplainer({ onExample }: { onExample: (() => void) | null }) {
+  return (
+    <section className="tt-explainer" aria-labelledby="tt-explainer-title">
+      <div className="tt-explainer-copy">
+        <p className="eyebrow"><span className="eyebrow-dot" /> THE IDEA</p>
+        <h2 id="tt-explainer-title">Sentiment contradiction</h2>
+        <p>
+          Every thumbnail sells a <strong>feeling</strong>. When the video never delivers that feeling (terror on
+          the thumbnail, a calm tutorial inside), viewers feel tricked. Keyword filters miss this because the
+          topic can match while the emotion is fake. Gemini looks at both and measures the gap.
+        </p>
+        {onExample && (
+          <button type="button" className="project-telos-button journey-cta" onClick={onExample}>
+            See the full check on this example <span aria-hidden="true">↓</span>
+          </button>
+        )}
+      </div>
+
+      <div className="tt-explainer-demo">
+        <figure className="tt-explainer-side">
+          <div className="tt-sample-thumb tone-shock" aria-hidden="true">
+            <span className="tt-sample-thumb-text">IT EXPLODED?!</span>
+            <span className="tt-sample-thumb-caption">burning supercar · screaming face</span>
+          </div>
+          <figcaption><small>Thumbnail sells</small><strong>😱 Panic</strong></figcaption>
+          <EmotionBar value={95} label="Thumbnail emotional intensity" />
+        </figure>
+        <div className="tt-explainer-gap" aria-hidden="true"><span>≠</span><small>80-pt gap</small></div>
+        <figure className="tt-explainer-side">
+          <div className="tt-sample-thumb tone-calm" aria-hidden="true">
+            <span className="tt-sample-thumb-text">Car-wash how-to</span>
+            <span className="tt-sample-thumb-caption">rinse · foam · dry a hatchback</span>
+          </div>
+          <figcaption><small>Video delivers</small><strong>😌 Calm</strong></figcaption>
+          <EmotionBar value={15} label="Video emotional intensity" />
+        </figure>
+      </div>
+
+      <div className="tt-explainer-also">
+        <span className="tt-muted">Also checked in the same pass:</span>
+        <ul>
+          <li><span aria-hidden="true">👻</span><strong>Ghost entities</strong> shown on the thumbnail, never in the video</li>
+          <li><span aria-hidden="true">⭕</span><strong>Visual exaggeration</strong> fake arrows, flames, scale tricks</li>
+          <li><span aria-hidden="true">🧭</span><strong>Thematic mismatch</strong> a different topic than promised</li>
+        </ul>
+        <details>
+          <summary>How is the 0–100 risk score calculated?</summary>
+          <p className="tt-muted">{SCORE_HELP}</p>
+        </details>
+      </div>
+    </section>
+  );
+}
+
+function EmotionBar({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="tt-emotion-bar" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100}
+      aria-valuenow={value}>
+      <span style={{ width: `${value}%` }} />
+      <b>{value}</b>
+    </div>
+  );
+}
+
+/** The headline finding: what the thumbnail sells vs. what the video delivers, and the gap between them. */
+function EmotionGap({ sentiment }: { sentiment: ThumbnailTruthResult['sentiment'] }) {
+  const promised = sentiment.thumbnailIntensity ?? null;
+  const delivered = sentiment.videoIntensity ?? null;
+  const gap = promised !== null && delivered !== null ? Math.abs(promised - delivered) : null;
+
+  return (
+    <article className={`tt-card tt-emotion ${sentiment.contradiction ? 'is-on' : ''}`}>
+      <h4>
+        Sentiment contradiction
+        <span className="tt-emotion-verdict">{sentiment.contradiction ? 'Detected' : 'Not detected'}</span>
+      </h4>
+      <div className="tt-emotion-rows">
+        <div>
+          <small>Thumbnail sells</small>
+          <strong>{sentiment.thumbnail}</strong>
+          {promised !== null && <EmotionBar value={promised} label="Thumbnail emotional intensity" />}
+        </div>
+        <div className="tt-explainer-gap" aria-hidden="true">
+          <span>{sentiment.contradiction ? '≠' : '='}</span>
+          {gap !== null && <small>{gap}-pt gap</small>}
+        </div>
+        <div>
+          <small>Video delivers</small>
+          <strong>{sentiment.video}</strong>
+          {delivered !== null && <EmotionBar value={delivered} label="Video emotional intensity" />}
+        </div>
+      </div>
+      {gap !== null && <p className="sr-only">Emotion gap: {gap} points out of 100.</p>}
+      <p className={`tt-flag ${sentiment.thematicMismatch ? 'is-on' : ''}`}>
+        Thematic mismatch: {sentiment.thematicMismatch ? 'yes, the topic differs too' : 'no, the topic matches'}
+      </p>
+    </article>
   );
 }
 
@@ -143,7 +271,7 @@ function AnalysisProgress({ mode, clip, onCancel }: { mode: Mode; clip: Clip; on
     <div className="tt-progress" role="status" aria-live="polite">
       <div className="tt-progress-head">
         <span className="tt-spinner" aria-hidden="true" />
-        <strong>Verifying… {elapsed}s</strong>
+        <strong>Checking… {elapsed}s</strong>
         <button type="button" className="tt-chip" onClick={onCancel}>Cancel</button>
       </div>
       <div className="tt-progress-bar" aria-hidden="true"><span /></div>
@@ -212,7 +340,61 @@ function ClipPicker({ preview, loading, clip, disabled, onClip }: {
   );
 }
 
-function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
+/** Concrete edits for each finding, so the creator knows exactly what to change. */
+function fixesFor(result: ThumbnailTruthResult): string[] {
+  if (result.band === 'safe') return [];
+  const fixes = result.ghostTracker
+    .filter((item) => item.status === 'ghost')
+    .map((item) => `Remove “${item.entity}” from the thumbnail: it never appears in the video.`);
+  if (result.visualExaggeration.detected) {
+    fixes.push(`Remove the added graphics that exaggerate the video: ${result.visualExaggeration.details}`);
+  }
+  if (result.sentiment.contradiction) {
+    fixes.push(`Match the mood: the thumbnail sells ${result.sentiment.thumbnail.toLowerCase()}, `
+      + `but the video feels ${result.sentiment.video.toLowerCase()}.`);
+  }
+  if (result.sentiment.thematicMismatch) {
+    fixes.push(result.actualTopics?.length
+      ? `Show the real topic: ${result.actualTopics.join(', ')}.`
+      : 'Show the topic the video is actually about.');
+  }
+  if (result.remediationTip && !fixes.includes(result.remediationTip)) fixes.push(result.remediationTip);
+  return fixes;
+}
+
+function FixList({ result, title, onRevise, onShowFix }: {
+  result: ThumbnailTruthResult; title: string; onRevise: () => void; onShowFix: (() => void) | null;
+}) {
+  const fixes = fixesFor(result);
+  const suggestTitle = result.improvedTitle && result.improvedTitle !== title;
+  return (
+    <article className="tt-card tt-fixes">
+      <h4>What to change before publishing</h4>
+      {fixes.length
+        ? <ol>{fixes.map((fix) => <li key={fix}>{fix}</li>)}</ol>
+        : <p className="tt-muted">Nothing to change: the thumbnail keeps the video's promise.</p>}
+      {suggestTitle && <p className="tt-tip"><strong>Suggested title:</strong> {result.improvedTitle}</p>}
+      {(fixes.length > 0 || onShowFix) && (
+        <div className="tt-fix-actions">
+          {fixes.length > 0 && (
+            <button type="button" className="project-telos-button secondary" onClick={onRevise}>
+              Revise draft and recheck
+            </button>
+          )}
+          {onShowFix && (
+            <button type="button" className="project-telos-button journey-cta" onClick={onShowFix}>
+              See the fixed version <span aria-hidden="true">→</span>
+            </button>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function Diagnostics({ result, title, onRevise, onShowFix }: {
+  result: ThumbnailTruthResult; title: string; onRevise: () => void; onShowFix: (() => void) | null;
+}) {
   const ghosts = result.ghostTracker.filter((item) => item.status === 'ghost').length;
   const player = useRef<YouTubePlayerHandle>(null);
   const video = result.youtubeVideo;
@@ -225,11 +407,16 @@ function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
   return (
     <section className="tt-results" aria-labelledby="tt-results-title" aria-live="polite">
       <div className="tt-results-head">
-        <h3 id="tt-results-title">Integrity diagnostics</h3>
+        <h3 id="tt-results-title">Your thumbnail check</h3>
         <span className={`tt-source ${result.source === 'gemini' ? 'is-live' : ''}`}>
           {result.source === 'gemini' ? `Live Gemini · ${result.model}` : 'Reviewed sample · no model call'}
         </span>
       </div>
+      <p className={`tt-source-banner ${result.source === 'gemini' ? 'is-live' : ''}`}>
+        {result.source === 'gemini'
+          ? <><strong>Live check.</strong> Gemini analysed this {result.youtubeVideo ? 'video' : 'draft'} just now.</>
+          : <><strong>Reviewed example.</strong> A precomputed result that shows what a check returns. No AI call was made.</>}
+      </p>
       {(result.youtubeVideo || result.translation || result.analysedWindowSec != null) && (
         <div className="tt-badges">
           {result.youtubeVideo && (
@@ -260,23 +447,30 @@ function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
         </div>
       )}
 
-      <div className="tt-score-row">
-        <RiskGauge result={result} />
-        <div>
-          <p className={`tt-band band-${result.band}`}>{result.bandLabel}</p>
-          {result.breakdown && (
-            <p className="tt-breakdown">
-              Visual risk {result.breakdown.visualRisk} · Sentiment risk {result.breakdown.sentimentRisk}
-              {' '}→ average + {result.breakdown.penalties} pattern penalties
-            </p>
-          )}
-          <p className="tt-scale">0–30 safe · 31–65 review · 66–100 held. Heuristic bands, not a probability.</p>
+      <div className="tt-summary">
+        <div className="tt-score-row">
+          <RiskGauge result={result} />
+          <div>
+            <p className={`tt-band band-${result.band}`}>{result.bandLabel}</p>
+            {result.riskScore !== null && (
+              <p className="tt-verdict">
+                Your thumbnail sells <strong>{result.sentiment.thumbnail.toLowerCase()}</strong>; your video
+                delivers <strong>{result.sentiment.video.toLowerCase()}</strong>
+                {ghosts > 0 && <>, and shows {ghosts} thing{ghosts === 1 ? '' : 's'} the video never does</>}.
+              </p>
+            )}
+            <p className="tt-scale">A signal to review, not proof of intent · 0–30 matches · 31–65 worth a look · 66–100 strong mismatch</p>
+            {result.breakdown && (
+              <p className="tt-breakdown">
+                Visual risk {result.breakdown.visualRisk} · Sentiment risk {result.breakdown.sentimentRisk}
+                {' '}→ average + {result.breakdown.penalties} pattern penalties
+              </p>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="tt-grid">
-        <article className="tt-card">
-          <h4>The promise vs. the content</h4>
+        <article className="tt-card tt-proof">
+          <h4>The proof: promised vs. found</h4>
           <dl className="tt-sentiment">
             <div><dt>Promised topics</dt><dd>{result.promisedTopics?.join(', ') || 'No separate topic list supplied'}</dd></div>
             <div><dt>Observed topics</dt><dd>{result.actualTopics?.join(', ') || 'See observations below'}</dd></div>
@@ -296,6 +490,13 @@ function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
             </li>)}
           </ul> : <p className="tt-muted">No timestamped observations supplied. The rationale below explains the available evidence.</p>}
         </article>
+      </div>
+
+      <EmotionGap sentiment={result.sentiment} />
+
+      <FixList result={result} title={title} onRevise={onRevise} onShowFix={onShowFix} />
+
+      <div className="tt-grid">
         <article className="tt-card">
           <h4>Ghost entity tracker <span>{ghosts} ghost{ghosts === 1 ? '' : 's'}</span></h4>
           {result.ghostTracker.length === 0
@@ -317,29 +518,66 @@ function Diagnostics({ result }: { result: ThumbnailTruthResult }) {
             <span>{result.visualExaggeration.details}</span>
           </p>
         </article>
-
         <article className="tt-card">
-          <h4>Sentiment alignment</h4>
-          <dl className="tt-sentiment">
-            <div><dt>Thumbnail projects</dt><dd>{result.sentiment.thumbnail}</dd></div>
-            <div><dt>Video actually feels</dt><dd>{result.sentiment.video}</dd></div>
-          </dl>
-          <p className={`tt-flag ${result.sentiment.contradiction ? 'is-on' : ''}`}>
-            Sentiment contradiction: {result.sentiment.contradiction ? 'yes' : 'no'}
-          </p>
-          <p className={`tt-flag ${result.sentiment.thematicMismatch ? 'is-on' : ''}`}>
-            Thematic mismatch: {result.sentiment.thematicMismatch ? 'yes' : 'no'}
-          </p>
+          <h4>Why this score</h4>
+          <ol className="tt-rationale-list">{result.rationale.map((line) => <li key={line}>{line}</li>)}</ol>
         </article>
       </div>
-
-      <article className="tt-card tt-rationale">
-        <h4>Model rationale</h4>
-        <ol>{result.rationale.map((line) => <li key={line}>{line}</li>)}</ol>
-        <p className="tt-tip"><strong>Fix before publishing:</strong> {result.remediationTip}</p>
-        {result.improvedTitle && <p className="tt-tip"><strong>Suggested title:</strong> {result.improvedTitle}</p>}
-      </article>
       <p className="tt-note">{result.note}</p>
+    </section>
+  );
+}
+
+/** Before vs. after a revision: the payoff of the fix-and-recheck loop. Only shown for a real new check. */
+function RecheckComparison({ before, after, afterTitle }: {
+  before: Baseline; after: ThumbnailTruthResult; afterTitle: string;
+}) {
+  const afterLabel = after.source === 'gemini' ? 'After your revision' : 'After the reviewed fix';
+  if (after.riskScore === null) return null;
+  const change = after.riskScore - before.score;
+  return (
+    <section className="tt-recheck" aria-label="Before and after your revision">
+      <div className={`tt-recheck-side band-${before.band}`}>
+        <small>Before</small><strong>{before.score}</strong><span>{before.title}</span>
+      </div>
+      <span className="tt-recheck-arrow" aria-hidden="true">→</span>
+      <div className={`tt-recheck-side band-${after.band}`}>
+        <small>{afterLabel}</small><strong>{after.riskScore}</strong><span>{afterTitle}</span>
+      </div>
+      <p className={change < 0 ? 'is-better' : change > 0 ? 'is-worse' : ''}>
+        {change < 0 ? `Risk down ${-change} points` : change > 0 ? `Risk up ${change} points` : 'No change in risk'}
+      </p>
+    </section>
+  );
+}
+
+/** This creator's recent checks, newest first, so revisions can be compared over time. */
+function History({ entries, storage, onClear }: {
+  entries: ThumbnailTruthHistoryEntry[]; storage: 'local' | 'firestore'; onClear: () => void;
+}) {
+  return (
+    <section className="tt-panel" aria-labelledby="tt-history-title">
+      <div className="tt-panel-head">
+        <h2 id="tt-history-title">Your recent checks</h2>
+        <span className="tt-history-actions">
+          <span className="tt-muted">{storage === 'firestore' ? 'Saved in Firestore' : 'Saved on this server'}</span>
+          <button type="button" className="tt-chip" onClick={onClear}>Clear history</button>
+        </span>
+      </div>
+      <ol className="tt-history">
+        {entries.map((entry) => (
+          <li key={entry.id} className={`band-${entry.band}`}>
+            <strong className="tt-history-score">{entry.riskScore ?? '—'}</strong>
+            <span className="tt-history-title">{entry.title}</span>
+            <small>
+              {entry.emotionGap !== null && `${entry.emotionGap}-pt emotion gap · `}
+              {entry.ghostEntities} ghost{entry.ghostEntities === 1 ? '' : 's'}
+              {' · '}{entry.source === 'youtube-link' ? 'YouTube link' : 'Draft upload'}
+              {' · '}{new Date(entry.checkedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+            </small>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -434,6 +672,11 @@ export function ThumbnailTruth() {
   const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revisionNote, setRevisionNote] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState<Baseline | null>(null);
+  // Set by a revision and used by the next successful check only.
+  const pendingBaseline = useRef<Baseline | null>(null);
+  const [creatorId] = useState(creatorIdentity);
+  const [history, setHistory] = useState<ThumbnailTruthHistoryEntry[]>([]);
   const mounted = useRef(true);
   const inFlight = useRef<AbortController | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -455,8 +698,30 @@ export function ThumbnailTruth() {
         if (mounted.current) setError(cause instanceof Error ? cause.message : 'ThumbnailTruth is unavailable');
       }
     })();
+    void refreshHistory();
     return () => { mounted.current = false; };
   }, []);
+
+  /** History is a convenience: failing to load it never blocks a check. */
+  async function refreshHistory() {
+    if (!creatorId) return;
+    try {
+      const entries = await api.thumbnailTruthHistory(creatorId);
+      if (mounted.current) setHistory(entries);
+    } catch {
+      // Leave the last known history in place.
+    }
+  }
+
+  async function clearHistory() {
+    if (!creatorId) return;
+    try {
+      await api.thumbnailTruthForgetHistory(creatorId);
+      if (mounted.current) setHistory([]);
+    } catch (cause) {
+      if (mounted.current) setError(cause instanceof Error ? cause.message : 'Could not clear your history');
+    }
+  }
 
   // Look up the pasted link (title, length) so the creator can choose how much to analyse.
   useEffect(() => {
@@ -508,10 +773,22 @@ export function ThumbnailTruth() {
     setResult(sample.result);
     setError(null);
     setRevisionNote(null);
+    setBaseline(null);
+    pendingBaseline.current = null;
+  }
+
+  /** Show a sample's reviewed fix, compared with the sample it fixes. */
+  function showFix(original: ThumbnailTruthSample, fixed: ThumbnailTruthSample) {
+    showSample(fixed);
+    if (original.result.riskScore !== null) {
+      setBaseline({ score: original.result.riskScore, band: original.result.band, title: original.title });
+    }
   }
 
   function revise(image?: ThumbnailRedesignResult) {
     if (!result) return;
+    pendingBaseline.current = result.riskScore === null
+      ? null : { score: result.riskScore, band: result.band, title: resultTitle };
     if (sample) {
       setDescription(sample.description);
       setTranscript(sample.transcript);
@@ -545,23 +822,30 @@ export function ThumbnailTruth() {
     setAnalysing(true);
     setSelectedSample(null);
     setResult(null);
+    setBaseline(null);
     setError(null);
     setRevisionNote(null);
     const controller = new AbortController();
     inFlight.current = controller;
+    const identity = creatorId ? { creatorId } : {};
     try {
       const verdict = mode === 'youtube'
         ? await api.thumbnailTruthAnalyseYoutube({
           url: youtubeUrl.trim(), transcript, region, consentToGoogleAnalysis: consent,
-          ...(clip !== 'full' ? { clipSeconds: clip } : {}),
+          ...(clip !== 'full' ? { clipSeconds: clip } : {}), ...identity,
         }, controller.signal)
         : await api.thumbnailTruthAnalyse({
           title, description, transcript, region,
           thumbnail: thumbnail!.upload,
           ...(video ? { video: video.upload } : {}),
-          consentToGoogleAnalysis: consent,
+          consentToGoogleAnalysis: consent, ...identity,
         }, controller.signal);
-      if (mounted.current) setResult(verdict);
+      if (mounted.current) {
+        setResult(verdict);
+        setBaseline(pendingBaseline.current);
+        pendingBaseline.current = null;
+      }
+      void refreshHistory();
     } catch (cause) {
       if (!mounted.current) return;
       if (controller.signal.aborted) setError('Check cancelled. No verdict was produced.');
@@ -582,10 +866,15 @@ export function ThumbnailTruth() {
     : youtubeUrl.trim().length > 0;
   const canVerify = live && consent && ready && !analysing;
   const sample = samples.find((item) => item.id === selectedSample);
+  const fixedSample = sample ? samples.find((item) => item.revisionOf === sample.id) : undefined;
   const resultTitle = result?.youtubeVideo?.title ?? (sample ? sample.title : title);
+
+  const explainerSample = samples.find((item) => item.id === 'ghost-supercar');
 
   return (
     <div className="tt-shell" data-testid="thumbnail-truth">
+      <ContradictionExplainer onExample={explainerSample ? () => showSample(explainerSample) : null} />
+
       <section ref={draftRef} className="tt-panel" aria-labelledby="tt-upload-title">
         <div className="tt-panel-head">
           <h2 id="tt-upload-title">Check your draft</h2>
@@ -596,9 +885,8 @@ export function ThumbnailTruth() {
         {revisionNote && <p role="status" className="tt-muted">{revisionNote}</p>}
         {status && !live && (
           <p className="tt-muted tt-config-note">
-            Live checks need PROJECT_TELOS_PROVIDER=gemini with an API key, or vertex with a Google Cloud project
-            and credentials. Until then, use the reviewed
-            samples; Project Telos never invents a score for an upload it has not analysed.
+            Live Gemini checks are switched off on this deployment. The reviewed examples below show exactly
+            what a live check returns; Project Telos never invents a score for an upload it has not analysed.
           </p>
         )}
 
@@ -681,10 +969,11 @@ export function ThumbnailTruth() {
             ? 'I agree to send this public video link, its thumbnail, and any transcript to Google Gemini for analysis.'
             : 'I agree to send this thumbnail, text, and optional video to Google Gemini for analysis. Project Telos does not store the files.'}
           {status?.translationEnabled && ' Non-English text is also translated with Google Cloud Translation.'}
+          {creatorId && ' The title and score are kept in your recent checks so you can compare revisions.'}
         </label>
 
         <button type="button" className="project-telos-button journey-cta tt-verify" disabled={!canVerify} onClick={() => void verify()}>
-          {analysing ? 'Verifying…' : 'Verify platform integrity'}
+          {analysing ? 'Checking…' : 'Check my thumbnail'}
         </button>
         {analysing && <AnalysisProgress mode={mode} clip={clip} onCancel={cancel} />}
       </section>
@@ -695,7 +984,7 @@ export function ThumbnailTruth() {
           <span className="tt-muted">Precomputed results · no model call</span>
         </div>
         <div className="tt-samples" role="group" aria-label="Reviewed sample submissions">
-          {samples.map((item) => (
+          {samples.filter((item) => !item.revisionOf).map((item) => (
             <button key={item.id} type="button" aria-pressed={selectedSample === item.id}
               className={`tt-sample band-${item.result.band}`} onClick={() => showSample(item)}>
               <span>{item.label}</span>
@@ -715,12 +1004,15 @@ export function ThumbnailTruth() {
         )}
       </section>
 
+      {history.length > 0 && (
+        <History entries={history} storage={status?.historyStorage ?? 'local'} onClear={() => void clearHistory()} />
+      )}
+
       {error && <p role="alert" className="tt-error">{error}</p>}
       {result && <div ref={resultsRef}>
-        <Diagnostics result={result} />
-        <button type="button" className="project-telos-button secondary" onClick={() => revise()}>
-          Revise draft and recheck
-        </button>
+        {baseline && <RecheckComparison before={baseline} after={result} afterTitle={resultTitle} />}
+        <Diagnostics result={result} title={resultTitle} onRevise={() => revise()}
+          onShowFix={sample && fixedSample ? () => showFix(sample, fixedSample) : null} />
         <Redesign key={`${result.source}-${result.riskScore}-${resultTitle}`} result={result} title={resultTitle} status={status}
           onUse={(image) => revise(image)} />
       </div>}

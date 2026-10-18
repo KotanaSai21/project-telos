@@ -122,6 +122,21 @@ export interface ThumbnailTruthStatus {
   imagenModel?: string;
   translationEnabled?: boolean;
   analyticsEnabled?: boolean;
+  /** Where recent-check summaries are kept. */
+  historyStorage?: 'local' | 'firestore';
+}
+
+/** A short summary of one past check; no files are stored. */
+export interface ThumbnailTruthHistoryEntry {
+  id: string;
+  checkedAt: string;
+  title: string;
+  source: 'upload' | 'youtube-link';
+  band: RiskBand;
+  riskScore: number | null;
+  emotionGap: number | null;
+  sentimentContradiction: boolean;
+  ghostEntities: number;
 }
 
 export type RiskBand = 'safe' | 'review' | 'high' | 'unverified';
@@ -136,7 +151,11 @@ export interface ThumbnailTruthResult {
   breakdown: { visualRisk: number; sentimentRisk: number; penalties: number } | null;
   ghostTracker: Array<{ entity: string; status: 'verified' | 'ghost' | 'unconfirmed' }>;
   visualExaggeration: { detected: boolean; details: string };
-  sentiment: { thumbnail: string; video: string; contradiction: boolean; thematicMismatch: boolean };
+  sentiment: {
+    thumbnail: string; video: string; contradiction: boolean; thematicMismatch: boolean;
+    /** 0-100 emotional intensity of each side; absent on older results. */
+    thumbnailIntensity?: number | null; videoIntensity?: number | null;
+  };
   rationale: string[];
   remediationTip: string;
   videoProvided: boolean;
@@ -161,6 +180,8 @@ export interface ThumbnailTruthSample {
   thumbnailText: string;
   thumbnailTone: 'calm' | 'shock' | 'grief';
   result: ThumbnailTruthResult;
+  /** Set on a reviewed fix of another sample. */
+  revisionOf?: string | null;
 }
 
 export interface MediaUpload {
@@ -176,6 +197,8 @@ export interface ThumbnailTruthRequest {
   thumbnail: MediaUpload;
   video?: MediaUpload;
   consentToGoogleAnalysis: boolean;
+  /** Anonymous browser id; when present the check is added to this creator's history. */
+  creatorId?: string;
 }
 
 export interface ThumbnailTruthYouTubeRequest {
@@ -185,6 +208,8 @@ export interface ThumbnailTruthYouTubeRequest {
   consentToGoogleAnalysis: boolean;
   /** Analyse only the opening seconds; omit for the whole video. */
   clipSeconds?: number;
+  /** Anonymous browser id; when present the check is added to this creator's history. */
+  creatorId?: string;
 }
 
 export interface ThumbnailTruthYouTubePreview {

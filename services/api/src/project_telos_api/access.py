@@ -22,7 +22,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from project_telos_api.config import Settings, get_settings
 from project_telos_api.logging_setup import get_logger
 
-COOKIE_NAME: Final[str] = "telos_access"
+# Firebase Hosting forwards only a cookie named "__session" to Cloud Run, so use that name.
+COOKIE_NAME: Final[str] = "__session"
 COOKIE_MAX_AGE: Final[int] = 7 * 24 * 60 * 60
 PROTECTED_PREFIXES: Final[tuple[str, ...]] = ("/project-telos", "/profiles", "/docs", "/openapi.json")
 LOCKED_DETAIL: Final[str] = "Access code required."

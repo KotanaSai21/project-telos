@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,7 +18,7 @@ from project_telos_api.main import create_app
 from project_telos_api.providers import reset_providers
 from project_telos_api.providers.gemini import generation_schema
 from project_telos_api.thumbnail_truth import (
-    MAX_THUMBNAIL_BYTES, GhostEntityScan, SentimentScan, band_for, build_result, combine,
+    GHOST_ENTITY_PROMPT, MAX_THUMBNAIL_BYTES, GhostEntityScan, SentimentScan, band_for, build_result, combine,
     ghost_tracker,
 )
 
@@ -46,6 +47,8 @@ def sentiment_payload(**overrides: Any) -> dict[str, Any]:
     payload = {
         "thumbnail_projected_sentiment": "Shock",
         "actual_video_sentiment": "Calm tutorial",
+        "thumbnail_emotion_intensity": 90,
+        "video_emotion_intensity": 20,
         "sentiment_contradiction_detected": True,
         "thematic_mismatch_detected": False,
         "deception_risk_score": 80,
@@ -88,9 +91,18 @@ def live(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, request):
     calls: list[dict[str, Any]] = []
     responses = [json.dumps(ghost_payload()), json.dumps(sentiment_payload())]
 
+    ghost_calls: list[int] = []
+    lock = threading.Lock()
+
     def generate(**kwargs: Any) -> SimpleNamespace:
-        calls.append(kwargs)
-        return SimpleNamespace(text=responses[len(calls) - 1])
+        # The two scans run concurrently, so route by scan, not by call order: ghost scan
+        # attempts read responses[0], responses[1], ...; the sentiment scan reads the last one.
+        with lock:
+            calls.append(kwargs)
+            if kwargs["config"]["system_instruction"] != GHOST_ENTITY_PROMPT:
+                return SimpleNamespace(text=responses[-1])
+            ghost_calls.append(1)
+            return SimpleNamespace(text=responses[len(ghost_calls) - 1])
 
     @contextmanager
     def fake_client(**kwargs: Any):
@@ -528,3 +540,114 @@ def test_invalid_scan_output_is_retried_once(live) -> None:
     response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body())
     assert response.status_code == 200, response.text
     assert len(calls) == 3
+
+
+@pytest.mark.parametrize(("start", "end", "kept"), [
+    (5, 9, True),
+    (5, 5, False),    # zero length
+    (9, 5, False),    # reversed
+    (5, None, False), # one end missing
+    (-1, 4, False),   # negative
+    (None, None, True),
+])
+def test_broken_timestamp_ranges_are_dropped_not_adjusted(start, end, kept) -> None:
+    from project_telos_api.thumbnail_truth import without_broken_timestamps
+
+    row = {"promised": "Zoo", "observed": "Zoo", "startSec": start, "endSec": end}
+    cleaned = json.loads(without_broken_timestamps(json.dumps(ghost_payload(evidence=[row]))))["evidence"][0]
+    if kept:
+        assert (cleaned["startSec"], cleaned["endSec"]) == (start, end)
+    else:
+        assert cleaned["startSec"] is None and cleaned["endSec"] is None
+    assert cleaned["observed"] == "Zoo"
+
+
+def test_non_json_scan_output_is_left_for_strict_validation() -> None:
+    from project_telos_api.thumbnail_truth import without_broken_timestamps
+
+    assert without_broken_timestamps("not JSON") == "not JSON"
+    assert without_broken_timestamps("[1, 2]") == "[1, 2]"
+
+
+def test_one_broken_timestamp_keeps_the_verdict(live) -> None:
+    client, calls, responses = live
+    responses[0] = json.dumps(ghost_payload(evidence=[
+        {"promised": "Supercar", "observed": "Hatchback", "startSec": 12, "endSec": 12},
+        {"promised": "Wash", "observed": "Wash", "startSec": 3, "endSec": 8},
+    ]))
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body())
+    assert response.status_code == 200, response.text
+    evidence = response.json()["evidence"]
+    assert (evidence[0]["startSec"], evidence[0]["endSec"]) == (None, None)
+    assert (evidence[1]["startSec"], evidence[1]["endSec"]) == (3, 8)
+    assert len(calls) == 2
+
+
+def test_emotion_intensities_reach_the_creator(live) -> None:
+    client, _, _ = live
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body())
+    assert response.status_code == 200, response.text
+    sentiment = response.json()["sentiment"]
+    assert (sentiment["thumbnailIntensity"], sentiment["videoIntensity"]) == (90, 20)
+
+
+CREATOR = "creator-1234abcd"
+
+
+def test_checks_with_a_creator_id_build_a_newest_first_history(live) -> None:
+    client, _, responses = live
+    first = client.post("/project-telos/thumbnail-truth/analyse", json=request_body(creatorId=CREATOR))
+    assert first.status_code == 200, first.text
+    # The fixture's ghost-scan counter spans requests: this second ghost scan reads responses[1].
+    responses[1:] = [json.dumps(ghost_payload(ghost_entities_found=[], alignment_score=95))]
+    responses.append(json.dumps(sentiment_payload(
+        deception_risk_score=5, sentiment_contradiction_detected=False,
+        thumbnail_emotion_intensity=30, video_emotion_intensity=25,
+    )))
+    second = client.post("/project-telos/thumbnail-truth/analyse",
+                         json=request_body(creatorId=CREATOR, title="A calm hatchback wash"))
+    assert second.status_code == 200, second.text
+
+    history = client.get(f"/project-telos/thumbnail-truth/history/{CREATOR}").json()
+    assert [entry["title"] for entry in history] == ["A calm hatchback wash", "Washing my hatchback"]
+    assert history[0]["riskScore"] == second.json()["riskScore"]
+    assert (history[0]["emotionGap"], history[1]["emotionGap"]) == (5, 70)
+    assert history[1] == history[1] | {"source": "upload", "ghostEntities": 1, "sentimentContradiction": True}
+    assert client.get("/project-telos/thumbnail-truth/history/someone-else-0000").json() == []
+
+    assert client.delete(f"/project-telos/thumbnail-truth/history/{CREATOR}").status_code == 204
+    assert client.get(f"/project-telos/thumbnail-truth/history/{CREATOR}").json() == []
+
+
+def test_checks_without_a_creator_id_are_not_remembered(live) -> None:
+    client, _, _ = live
+    assert client.post("/project-telos/thumbnail-truth/analyse", json=request_body()).status_code == 200
+    assert client.get(f"/project-telos/thumbnail-truth/history/{CREATOR}").json() == []
+
+
+def test_history_rejects_malformed_creator_ids(live) -> None:
+    client, _, _ = live
+    assert client.get("/project-telos/thumbnail-truth/history/short").status_code == 422
+    body = request_body(creatorId="not a valid id!")
+    assert client.post("/project-telos/thumbnail-truth/analyse", json=body).status_code == 422
+
+
+def test_history_failure_keeps_the_verdict(live, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _, _ = live
+
+    def broken(*_: Any) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("project_telos_api.thumbnail_truth.remember", broken)
+    response = client.post("/project-telos/thumbnail-truth/analyse", json=request_body(creatorId=CREATOR))
+    assert response.status_code == 200, response.text
+
+
+def test_the_supercar_sample_has_a_reviewed_fix_that_scores_safe(client: TestClient) -> None:
+    samples = {sample["id"]: sample for sample in client.get("/project-telos/thumbnail-truth/samples").json()}
+    fixed = samples["ghost-supercar-fixed"]
+    assert fixed["revisionOf"] == "ghost-supercar"
+    assert fixed["result"]["source"] == "reviewed-sample"
+    assert fixed["result"]["band"] == "safe"
+    assert fixed["result"]["riskScore"] < samples["ghost-supercar"]["result"]["riskScore"]
+    assert fixed["title"] == samples["ghost-supercar"]["result"]["improvedTitle"]

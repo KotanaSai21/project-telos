@@ -4,7 +4,6 @@ import { api } from '../api/client';
 import { viewerSampleGroups } from '../api/samples';
 import type { ConsentProfile, YouTubeAudit, YouTubeCandidate, YouTubeSearch, YouTubeStatus } from '../api/types';
 import { formatTimecode } from '../playback/gate';
-import { YouTubePlayer } from './YouTubePlayer';
 
 function mergeLinked(current: YouTubeSearch | null, profileId: string, video: YouTubeCandidate): YouTubeSearch {
   const others = (current?.videos ?? []).filter((row) => row.videoId !== video.videoId);
@@ -27,7 +26,6 @@ export function YouTubeDiscovery({ profile }: { profile: ConsentProfile }) {
   const [approveAnalysis, setApproveAnalysis] = useState(false);
   const [approveOverride, setApproveOverride] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [previewing, setPreviewing] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [link, setLink] = useState('');
   const [linking, setLinking] = useState(false);
@@ -187,17 +185,9 @@ export function YouTubeDiscovery({ profile }: { profile: ConsentProfile }) {
                 onClick={() => void analyse(video.videoId)}>
                 {analysing === video.videoId ? 'Gemini is analysing...' : `Analyse: ${video.title}`}
               </button>
-              <button type="button" className="project-telos-button secondary mt-2"
-                aria-pressed={previewing === video.videoId}
-                onClick={() => setPreviewing((current) => (current === video.videoId ? null : video.videoId))}>
-                {previewing === video.videoId ? 'Close preview' : 'Preview (not checked)'}
-              </button>
-              {previewing === video.videoId && <div className="mt-3">
-                <p className="mb-2 text-[11px] leading-5 text-amber-200">
-                  Not checked against your boundaries yet. Analyse it first if you want Project Telos to look before you watch.
-                </p>
-                <YouTubePlayer videoId={video.videoId} title={video.title} />
-              </div>}
+              <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                No thumbnail or player loads until Project Telos has checked this video and you choose to watch.
+              </p>
             </article>)}
           </div>
         </>}

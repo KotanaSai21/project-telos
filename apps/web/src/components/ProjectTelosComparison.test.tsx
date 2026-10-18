@@ -22,14 +22,43 @@ const item: ProjectTelosItem = {
   },
 };
 
+/** The viewer's explicit choice to start playback after seeing the pre-check. */
+function watch() {
+  act(() => { screen.getByRole('button', { name: /^Watch/ }).click(); });
+}
+
 describe('ProjectTelosComparison', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it('shows the pre-check verdict and loads no video until the viewer chooses to watch', async () => {
+    const { container } = render(<ProjectTelosComparison fixture={fixture} item={item} busy={false} showBefore
+      onHeld={vi.fn()} onReframe={vi.fn()} />);
+    await act(async () => { vi.advanceTimersByTime(5000); });
+    expect(screen.getByText('✓ Checked before you watch')).toBeInTheDocument();
+    expect(screen.getByText('The first 0:13 fits your intent')).toBeInTheDocument();
+    expect(screen.getByText('Checked · not playing')).toBeInTheDocument();
+    expect(screen.getByTestId('after-time')).toHaveTextContent('0:00');
+    expect(screen.getByTestId('before-time')).toHaveTextContent('0:00');
+    expect(container.querySelector('[data-testid="youtube-player"], iframe')).toBeNull();
+    expect(container.querySelector('.has-video')).toBeNull();
+
+    watch();
+    await act(async () => { vi.advanceTimersByTime(1); });
+    await act(async () => { vi.advanceTimersByTime(2000); });
+    expect(screen.getByTestId('after-time')).toHaveTextContent('0:02');
+  });
+
+  it('renders no Before side at all unless the comparison is requested', () => {
+    render(<ProjectTelosComparison fixture={fixture} item={item} busy={false} onHeld={vi.fn()} onReframe={vi.fn()} />);
+    expect(screen.queryByTestId('before-scene')).not.toBeInTheDocument();
+  });
+
   it('survives StrictMode, holds exactly at 13, and lets Before reach the switch', async () => {
     const onHeld = vi.fn();
-    render(<StrictMode><ProjectTelosComparison fixture={fixture} item={item} busy={false}
+    render(<StrictMode><ProjectTelosComparison fixture={fixture} item={item} busy={false} showBefore
       onHeld={onHeld} onReframe={vi.fn()} /></StrictMode>);
+    watch();
     await act(async () => { vi.advanceTimersByTime(1); });
     await act(async () => { vi.advanceTimersByTime(14_000); });
     expect(screen.getByTestId('before-time')).toHaveTextContent('0:14');
@@ -50,6 +79,8 @@ describe('ProjectTelosComparison', () => {
     render(<ProjectTelosComparison fixture={fixture}
       item={{ ...item, status: 'allowed', bait: { ...item.bait, index: 0, switchSec: null, evidence: [] } }}
       busy={false} onHeld={onHeld} onReframe={vi.fn()} />);
+    expect(screen.getByText('Matches your intent')).toBeInTheDocument();
+    watch();
     await act(async () => { vi.advanceTimersByTime(1); });
     await act(async () => { vi.advanceTimersByTime(15_000); });
     expect(screen.getByTestId('after-time')).toHaveTextContent('0:15');
@@ -67,6 +98,7 @@ describe('ProjectTelosComparison', () => {
     await act(async () => { vi.advanceTimersByTime(5000); });
     expect(screen.getByTestId('after-time')).toHaveTextContent('0:00');
     expect(screen.getAllByText('Filtered from your feed').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /^Watch/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/Bait Index/)).not.toBeInTheDocument();
     expect(onHeld).toHaveBeenCalledOnce();
   });
@@ -77,6 +109,7 @@ describe('ProjectTelosComparison', () => {
       busy: false, onHeld: vi.fn(), onReframe: vi.fn(),
     };
     const { rerender } = render(<ProjectTelosComparison {...props} active />);
+    watch();
     await act(async () => { vi.advanceTimersByTime(1); });
     await act(async () => { vi.advanceTimersByTime(3000); });
     rerender(<ProjectTelosComparison {...props} active={false} />);
