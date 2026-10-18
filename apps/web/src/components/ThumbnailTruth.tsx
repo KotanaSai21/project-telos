@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 
 import { api } from '../api/client';
-import { SAMPLE_YOUTUBE_LINKS } from '../api/samples';
+import { SAMPLE_YOUTUBE_LINKS, SAMPLE_YOUTUBE_SHORTS, youtubeVideoId, type SampleYouTubeLink } from '../api/samples';
 import { formatTimecode } from '../playback/gate';
 import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import type {
@@ -252,6 +252,30 @@ function EmotionGap({ sentiment }: { sentiment: ThumbnailTruthResult['sentiment'
         Thematic mismatch: {sentiment.thematicMismatch ? 'yes, the topic differs too' : 'no, the topic matches'}
       </p>
     </article>
+  );
+}
+
+/** Sample links as thumbnail cards. Thumbnails come from YouTube's public image host. */
+function SampleLinks({ title, links, vertical = false, selected, disabled, onPick }: {
+  title: string; links: readonly SampleYouTubeLink[]; vertical?: boolean; selected: string; disabled: boolean;
+  onPick: (url: string) => void;
+}) {
+  return (
+    <div className="tt-wide tt-sample-links" role="group" aria-label={title}>
+      <span className="tt-muted">{title}</span>
+      <div className={`tt-sample-link-row ${vertical ? 'is-vertical' : ''}`}>
+        {links.map((link) => {
+          const id = youtubeVideoId(link.url);
+          return (
+            <button key={link.url} type="button" className="tt-sample-link" disabled={disabled}
+              aria-pressed={selected === link.url} onClick={() => onPick(link.url)}>
+              {id && <img src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`} alt="" loading="lazy" />}
+              <span>{link.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -913,13 +937,10 @@ export function ThumbnailTruth() {
                 placeholder="https://www.youtube.com/watch?v=..."
                 onChange={(event) => setYoutubeUrl(event.target.value)} />
             </label>
-            <div className="tt-wide tt-chips" role="group" aria-label="Sample YouTube links">
-              <span className="tt-muted">Try a sample:</span>
-              {SAMPLE_YOUTUBE_LINKS.map((link) => (
-                <button key={link.url} type="button" className="tt-chip" disabled={analysing}
-                  aria-pressed={youtubeUrl === link.url} onClick={() => setYoutubeUrl(link.url)}>{link.label}</button>
-              ))}
-            </div>
+            <SampleLinks title="Try a YouTube Short" links={SAMPLE_YOUTUBE_SHORTS} vertical selected={youtubeUrl}
+              disabled={analysing} onPick={setYoutubeUrl} />
+            <SampleLinks title="Or a classic video" links={SAMPLE_YOUTUBE_LINKS} selected={youtubeUrl}
+              disabled={analysing} onPick={setYoutubeUrl} />
             <ClipPicker preview={preview} loading={previewing} clip={clip} disabled={analysing} onClip={setClip} />
             <p className="tt-wide tt-muted">
               Project Telos fetches the real thumbnail and title from YouTube, then Gemini watches the public video

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { viewerSampleGroups } from './samples';
+import { SAMPLE_YOUTUBE_LINKS, SAMPLE_YOUTUBE_SHORTS, viewerSampleGroups, youtubeVideoId } from './samples';
 
 const labels = (groups: ReturnType<typeof viewerSampleGroups>, title: string) =>
   groups.find((group) => group.title === title)?.links.map((link) => link.label) ?? [];
@@ -33,5 +33,18 @@ describe('viewerSampleGroups', () => {
     expect(held.find((group) => group.title === 'Sensitive news')?.expectation).toMatch(/should be held/);
     const allowed = viewerSampleGroups({ interests: ['aviation'], avoid, allowContextually: ['news_reporting'] });
     expect(allowed.find((group) => group.title === 'Sensitive news')?.expectation).toMatch(/allowed as news reporting/);
+  });
+});
+
+describe('youtubeVideoId', () => {
+  it('reads watch, Shorts, and youtu.be links', () => {
+    expect(youtubeVideoId('https://www.youtube.com/watch?v=jNQXAC9IVRw')).toBe('jNQXAC9IVRw');
+    expect(youtubeVideoId('https://www.youtube.com/shorts/-FmaF5KnJ4c')).toBe('-FmaF5KnJ4c');
+    expect(youtubeVideoId('https://youtu.be/J---aiyznGQ')).toBe('J---aiyznGQ');
+    expect(youtubeVideoId('https://example.com/')).toBeNull();
+  });
+
+  it('gives every sample link a thumbnail id', () => {
+    for (const link of [...SAMPLE_YOUTUBE_SHORTS, ...SAMPLE_YOUTUBE_LINKS]) expect(youtubeVideoId(link.url)).not.toBeNull();
   });
 });

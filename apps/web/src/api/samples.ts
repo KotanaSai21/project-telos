@@ -3,6 +3,25 @@ export interface SampleYouTubeLink {
   url: string;
 }
 
+/** The 11-character video id of a watch, Shorts, or youtu.be link. */
+export function youtubeVideoId(url: string): string | null {
+  return url.match(/(?:v=|youtu\.be\/|\/shorts\/)([A-Za-z0-9_-]{11})/)?.[1] ?? null;
+}
+
+/**
+ * Creator Studio Shorts: real, public, embeddable, under a minute. Some have bait-style hooks
+ * ("You won't believe", "is scary") and some are plain, so the check has something to compare.
+ * Verified with the YouTube Data API; the verdict always comes from the live analysis.
+ */
+export const SAMPLE_YOUTUBE_SHORTS: readonly SampleYouTubeLink[] = [
+  { label: '"You Won’t Believe There’s A 10 ft. Alligator In Here!!!" (0:25)', url: 'https://www.youtube.com/shorts/Zbzh0fUUPtY' },
+  { label: '"Bromine is scary" · NileRed (0:49)', url: 'https://www.youtube.com/shorts/eLvXS6J_ETQ' },
+  { label: '"does this fried chicken hack ACTUALLY work?" (0:22)', url: 'https://www.youtube.com/shorts/OKRqFAwNRcI' },
+  { label: '"Water defies gravity. But how?!" (0:44)', url: 'https://www.youtube.com/shorts/-FmaF5KnJ4c' },
+  { label: 'Satisfying car wash (0:22)', url: 'https://www.youtube.com/shorts/SKOUzMYiAlY' },
+  { label: 'Baby kangaroo peeking out of the pouch (0:09)', url: 'https://www.youtube.com/shorts/6pRNg7Z-4QU' },
+];
+
 /**
  * Creator Studio samples: real, public YouTube videos. All but the last are about a minute or
  * less so a live check finishes quickly; the long one shows the "analyse the opening minute" path.

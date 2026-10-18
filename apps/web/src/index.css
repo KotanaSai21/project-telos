@@ -3508,3 +3508,73 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* Creator Studio: sample YouTube links as thumbnail cards. */
+.tt-sample-links {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tt-sample-link-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.tt-sample-link-row.is-vertical {
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+}
+
+.tt-sample-link {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 6px 9px;
+  background: var(--surface-raised);
+  color: rgb(var(--c-c3ccc8));
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 200ms ease, border-color 200ms ease;
+}
+
+.tt-sample-link:hover:not(:disabled) {
+  border-color: rgb(var(--c-baff6a) / 45%);
+  transform: translateY(-2px);
+}
+
+.tt-sample-link[aria-pressed='true'] {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+
+.tt-sample-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.tt-sample-link img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  background: rgb(var(--c-d3e8dd) / 8%);
+  object-fit: cover;
+}
+
+/* Shorts are vertical: crop the letterboxed thumbnail to its centre. */
+.tt-sample-link-row.is-vertical img {
+  aspect-ratio: 9 / 16;
+}
+
+.tt-sample-link span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  padding-inline: 3px;
+}

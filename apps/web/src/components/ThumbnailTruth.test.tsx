@@ -188,6 +188,11 @@ describe('ThumbnailTruth', () => {
     expect(screen.queryByLabelText(/Upload custom thumbnail/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Me at the zoo (0:19)' }));
     expect(screen.getByLabelText('Public YouTube video link')).toHaveValue('https://www.youtube.com/watch?v=jNQXAC9IVRw');
+    await userEvent.click(screen.getByRole('button', { name: /Water defies gravity/ }));
+    expect(screen.getByLabelText('Public YouTube video link')).toHaveValue('https://www.youtube.com/shorts/-FmaF5KnJ4c');
+    expect(screen.getByRole('button', { name: /Water defies gravity/ }).querySelector('img'))
+      .toHaveAttribute('src', 'https://i.ytimg.com/vi/-FmaF5KnJ4c/hqdefault.jpg');
+    await userEvent.click(screen.getByRole('button', { name: 'Me at the zoo (0:19)' }));
     const verify = screen.getByRole('button', { name: 'Check my thumbnail' });
     expect(verify).toBeDisabled();
     await userEvent.click(screen.getByRole('checkbox'));
