@@ -33,9 +33,12 @@ def _reset() -> Iterator[None]:
 def test_site_is_open_without_a_code(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PROJECT_TELOS_ACCESS_HINT", "Two words")
     monkeypatch.setenv("PROJECT_TELOS_ACCESS_HINT_ENABLED", "true")
+    monkeypatch.setenv("PROJECT_TELOS_RATE_LIMIT_PER_MINUTE", "45")
     get_settings.cache_clear()
     client = TestClient(create_app())
-    assert client.get("/access/status").json() == {"required": False, "unlocked": True, "hint": None}
+    assert client.get("/access/status").json() == {
+        "required": False, "unlocked": True, "hint": None, "rate_limit_per_minute": 45,
+    }
     assert client.get("/api/profiles/presets").status_code == 200
 
 

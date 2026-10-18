@@ -70,6 +70,7 @@ class AccessStatus(BaseModel):
     required: bool
     unlocked: bool
     hint: str | None = Field(None, description="Shown only when PROJECT_TELOS_ACCESS_HINT_ENABLED=true.")
+    rate_limit_per_minute: int = Field(description="Model-backed requests each visitor may make per minute.")
 
 
 class VerifyRequest(BaseModel):
@@ -86,6 +87,7 @@ def access_status(request: Request, settings: Settings = Depends(get_settings)) 
         required=required,
         unlocked=is_unlocked(request, settings),
         hint=hint or None,
+        rate_limit_per_minute=settings.rate_limit_per_minute,
     )
 
 

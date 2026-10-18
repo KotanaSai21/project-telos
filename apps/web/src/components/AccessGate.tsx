@@ -18,13 +18,18 @@ function rememberWelcome() {
 type Safeguard = { title: string; detail: string };
 
 /** Controls that are live in the deployed service, whether or not a code is required. */
-const SAFEGUARDS: readonly Safeguard[] = [
-  { title: 'No Gemini key to leak', detail: 'Gemini runs on Vertex AI under the service’s own identity. Other secrets live in Secret Manager, never in the page.' },
-  { title: 'Every visitor is rate limited', detail: 'Requests that can call Gemini, Imagen, or YouTube are capped per visitor per minute.' },
-  { title: 'Spend is capped', detail: 'At most 3 Cloud Run instances, and a monthly billing budget alerts the owner at 50%, 90%, and 100%.' },
-  { title: 'Consent before any AI call', detail: 'Nothing reaches Gemini until you tick the box. Uploaded files are not stored, only the title and score.' },
-  { title: 'Content is data, not instructions', detail: 'Thumbnail text, titles, and transcripts are treated as evidence, never as commands to the model.' },
-];
+function safeguards(ratePerMinute: number | null): Safeguard[] {
+  const rate = ratePerMinute
+    ? `Each visitor can make ${ratePerMinute} requests a minute that call Gemini, Imagen, or YouTube. Past that, the app asks you to wait a minute.`
+    : 'Requests that can call Gemini, Imagen, or YouTube are capped per visitor per minute.';
+  return [
+    { title: 'Every visitor is rate limited', detail: rate },
+    { title: 'No Gemini key to leak', detail: 'Gemini runs on Vertex AI under the service’s own identity. Other secrets live in Secret Manager, never in the page.' },
+    { title: 'Spend is capped', detail: 'At most 3 Cloud Run instances, and a monthly billing budget alerts the owner at 50%, 90%, and 100%.' },
+    { title: 'Consent before any AI call', detail: 'Nothing reaches Gemini until you tick the box. Uploaded files are not stored, only the title and score.' },
+    { title: 'Content is data, not instructions', detail: 'Thumbnail text, titles, and transcripts are treated as evidence, never as commands to the model.' },
+  ];
+}
 
 /** Extra controls that only apply while the site asks for a code. */
 const CODE_SAFEGUARDS: readonly Safeguard[] = [
@@ -53,6 +58,7 @@ function Safeguards({ title, items }: { title: string; items: readonly Safeguard
 export function AccessGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GateState>('checking');
   const [hint, setHint] = useState<string | null>(null);
+  const [ratePerMinute, setRatePerMinute] = useState<number | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +69,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
     function apply(status: AccessStatus) {
       if (!active) return;
       setHint(status.hint);
+      setRatePerMinute(status.rate_limit_per_minute ?? null);
       if (!status.required) setState(opened());
       else setState(status.unlocked ? 'open' : 'locked');
     }
@@ -109,7 +116,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
             No access code: you can try everything. Every check makes real Gemini calls on our own Google Cloud
             account, so these safeguards keep the prototype safe and affordable while it is open.
           </p>
-          <Safeguards title="How we keep it safe" items={SAFEGUARDS} />
+          <Safeguards title="How we keep it safe" items={safeguards(ratePerMinute)} />
           <button type="button" className="project-telos-button" autoFocus onClick={enter}>
             Enter Project Telos
           </button>
@@ -135,7 +142,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
         <button type="submit" className="project-telos-button" disabled={busy || !code.trim()}>
           {busy ? 'Checking…' : 'Continue'}
         </button>
-        <Safeguards title="Why there’s a code: security by design" items={[...CODE_SAFEGUARDS, ...SAFEGUARDS]} />
+        <Safeguards title="Why there’s a code: security by design" items={[...CODE_SAFEGUARDS, ...safeguards(ratePerMinute)]} />
       </form>
     </main>
   );

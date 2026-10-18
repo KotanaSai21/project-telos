@@ -29,6 +29,8 @@ export interface AccessStatus {
   required: boolean;
   unlocked: boolean;
   hint: string | null;
+  /** Model-backed requests each visitor may make per minute. */
+  rate_limit_per_minute: number;
 }
 
 export class ApiError extends Error {

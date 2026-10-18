@@ -17,10 +17,10 @@ beforeEach(() => {
 
 describe('AccessGate', () => {
   it('explains the safeguards once per tab when no code is required', async () => {
-    vi.mocked(api.accessStatus).mockResolvedValue({ required: false, unlocked: true, hint: null });
+    vi.mocked(api.accessStatus).mockResolvedValue({ required: false, unlocked: true, hint: null, rate_limit_per_minute: 30 });
     const { unmount } = render(<AccessGate><p>The app</p></AccessGate>);
     expect(await screen.findByRole('heading', { name: 'How we keep it safe' })).toBeInTheDocument();
-    expect(screen.getByText(/Every visitor is rate limited/)).toBeInTheDocument();
+    expect(screen.getByText(/Each visitor can make 30 requests a minute/)).toBeInTheDocument();
     expect(screen.queryByLabelText('Access code')).not.toBeInTheDocument();
     expect(screen.queryByText('The app')).not.toBeInTheDocument();
 
@@ -34,7 +34,7 @@ describe('AccessGate', () => {
   });
 
   it('asks for the code, shows the hint, and opens after a correct code', async () => {
-    vi.mocked(api.accessStatus).mockResolvedValue({ required: true, unlocked: false, hint: 'Two words' });
+    vi.mocked(api.accessStatus).mockResolvedValue({ required: true, unlocked: false, hint: 'Two words', rate_limit_per_minute: 30 });
     vi.mocked(api.accessVerify)
       .mockRejectedValueOnce(new ApiError(401, 'That access code is not right.'))
       .mockResolvedValueOnce(undefined);
@@ -58,7 +58,7 @@ describe('AccessGate', () => {
   });
 
   it('hides the hint when the server does not send one, and relocks on a 401', async () => {
-    vi.mocked(api.accessStatus).mockResolvedValue({ required: true, unlocked: true, hint: null });
+    vi.mocked(api.accessStatus).mockResolvedValue({ required: true, unlocked: true, hint: null, rate_limit_per_minute: 30 });
     render(<AccessGate><p>The app</p></AccessGate>);
     expect(await screen.findByText('The app')).toBeInTheDocument();
     act(() => { window.dispatchEvent(new Event(ACCESS_LOCKED_EVENT)); });
