@@ -184,8 +184,10 @@ describe('ThumbnailTruth', () => {
       },
     });
     render(<ThumbnailTruth />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Published YouTube link' }));
+    await userEvent.type(await screen.findByLabelText('Transcript or subtitles'), 'A transcript for my draft.');
+    await userEvent.click(screen.getByRole('button', { name: 'Published YouTube link' }));
     expect(screen.queryByLabelText(/Upload custom thumbnail/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Transcript or subtitles (optional)')).toHaveValue('');
     await userEvent.click(screen.getByRole('button', { name: 'Me at the zoo (0:19)' }));
     expect(screen.getByLabelText('Public YouTube video link')).toHaveValue('https://www.youtube.com/watch?v=jNQXAC9IVRw');
     await userEvent.click(screen.getByRole('button', { name: /Water defies gravity/ }));

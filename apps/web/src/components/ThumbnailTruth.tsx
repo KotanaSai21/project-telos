@@ -758,6 +758,8 @@ export function ThumbnailTruth() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [transcript, setTranscript] = useState('');
+  // Kept apart from the draft's transcript so one video's transcript is never sent with another video's link.
+  const [youtubeTranscript, setYoutubeTranscript] = useState('');
   const [region, setRegion] = useState('');
   const [consent, setConsent] = useState(false);
   const [mode, setMode] = useState<Mode>('upload');
@@ -930,7 +932,7 @@ export function ThumbnailTruth() {
     try {
       const verdict = mode === 'youtube'
         ? await api.thumbnailTruthAnalyseYoutube({
-          url: youtubeUrl.trim(), transcript, region, consentToGoogleAnalysis: consent,
+          url: youtubeUrl.trim(), transcript: youtubeTranscript, region, consentToGoogleAnalysis: consent,
           ...(clip !== 'full' ? { clipSeconds: clip } : {}), ...identity,
         }, controller.signal)
         : await api.thumbnailTruthAnalyse({
@@ -1050,11 +1052,11 @@ export function ThumbnailTruth() {
             </label>
           )}
           <label className="tt-wide">Transcript or subtitles{mode === 'youtube' ? ' (optional)' : ''}
-            <textarea value={transcript} maxLength={20000} rows={4} disabled={analysing}
+            <textarea value={mode === 'youtube' ? youtubeTranscript : transcript} maxLength={20000} rows={4} disabled={analysing}
               placeholder={mode === 'youtube'
                 ? 'Optional. Gemini already watches and listens to the public video.'
                 : 'Paste subtitles if you are not uploading the video.'}
-              onChange={(event) => setTranscript(event.target.value)} />
+              onChange={(event) => (mode === 'youtube' ? setYoutubeTranscript : setTranscript)(event.target.value)} />
           </label>
         </div>
 
