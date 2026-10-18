@@ -2,7 +2,7 @@
   "name": "project-telos",
   "version": "0.1.0",
   "private": true,
-  "description": "Project Telos - AI that understands what you want to experience",
+  "description": "Project Telos: checks that a video keeps the promise its thumbnail makes, for creators and viewers",
   "workspaces": [
     "packages/*",
     "apps/*"

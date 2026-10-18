@@ -1,29 +1,64 @@
 # Project Telos
 
-### Your attention, on your terms.
+### A thumbnail is a promise. Project Telos checks that the video keeps it.
 
-Project Telos is a hackathon prototype for feeds that respect declared intent
-and thumbnails that keep their promise. Declare what you want, review the
-profile, see a controlled feed catch a bait-and-switch, and inspect the receipt.
-The creator check reviews a draft thumbnail against its title and video.
+Built for the AI Builder Cup. Project Telos helps creators earn trust and helps viewers avoid clickbait.
 
-```text
-Declare → Understand → Detect bait → Hold → Reframe → Receipt
-```
+- **Live demo:** <https://project-telos-hget6gf4qq-ue.a.run.app> (open for judging, no access code)
+- **Demo video (2:39):** <https://www.youtube.com/watch?v=b8YuM-SNoJo>
+- **Pitch deck (PDF):** [Project Telos - AI Builder Cup.pdf](docs/Project%20Telos%20-%20AI%20Builder%20Cup.pdf)
 
-## What this prototype does
+## Why it exists
 
-- Opens on **Creator Studio**: review offline examples, check a draft upload, or
-  check a published YouTube video. Flagged results can request an Imagen
-  thumbnail suggestion when configured. Revise and explicitly recheck a new
-  title/thumbnail; no improved score is assumed.
-- Includes a **Viewer feed**: a four-item controlled demo and live YouTube
-  discovery are shown in the same experience after intent is declared.
-- Uses local fixtures by default. Live Gemini and YouTube features require
-  configuration. The live YouTube player is not frame-gated.
+- **For creators:** thumbnail tools today help you win the click. They score the thumbnail, not whether the
+  video delivers it. When a thumbnail oversells (a fake explosion, staged panic, an object that never
+  appears), viewers feel tricked and stop trusting the channel.
+- **For viewers:** Reels, Shorts, and feeds start playing before you decide, chosen by watch history and
+  dwell time. You can only swipe away after you have already seen it.
 
-See the [prototype blueprint](docs/PROJECT_TELOS_PROTOTYPE_IDEA.md) for scope,
-acceptance criteria, research positioning, and evaluation caveats.
+## What it does
+
+**Creator Studio (before you publish).** Gemini on Vertex AI compares the thumbnail with the draft or
+published video, checking both what it shows and the emotion it promises. Each result reads
+**Promise → Proof → Fix**: what the thumbnail promised, the evidence in the video with timestamps, and a
+concrete fix. Creators revise and recheck to see what changed, and Imagen can suggest an honest thumbnail.
+It works on a draft upload (thumbnail plus video or transcript) or any public YouTube link.
+
+**Viewer feed (before you watch).** Viewers declare what they are here for in their own words. Every
+video is checked against that intent before playback: off-topic content is filtered, and a
+bait-and-switch is paused before the switch. Viewers choose to watch, read a clean summary, or skip.
+
+## What is unique
+
+1. **Sentiment contradiction.** It catches a fake emotion even when the topic matches, which keyword
+   filters miss.
+2. **Promise → Proof → Fix.** Evidence with timestamps and a concrete fix, not just a score.
+3. **Checked before it plays.** It stops before the unwanted part, instead of filtering after you have
+   seen it.
+
+## Built on Google Cloud
+
+| Service | Role |
+| --- | --- |
+| Gemini on Vertex AI | Thumbnail and video analysis (two parallel scans with structured output), intent parsing, clean summaries |
+| Imagen | Honest replacement-thumbnail suggestions |
+| Cloud Run | Hosts the web app and API as one container, deployed from GitHub through Cloud Build |
+| Cloud Firestore | Viewer profiles, sessions, analyses, and each creator's check history |
+| YouTube Data API | Interest-based discovery and official video metadata |
+
+## Open for judging, safe by design
+
+The deployed site needs no access code. Its first screen explains the safeguards:
+
+- **Every visitor is rate limited:** 30 requests a minute that can call Gemini, Imagen, or YouTube.
+- **No Gemini key to leak:** Gemini runs on Vertex AI under the service's own identity; other secrets
+  live in Secret Manager.
+- **Spend is capped:** at most 3 Cloud Run instances, plus a monthly billing budget alert.
+- **Consent before any AI call,** and uploaded files are not stored.
+- **Content is data, not instructions:** thumbnail text, titles, and transcripts are treated as evidence,
+  never as commands to the model.
+
+An optional access code can still lock the site; see [Deployment](docs/DEPLOYMENT.md#optional-access-code).
 
 ## Quick start
 
@@ -61,8 +96,8 @@ proxies `/api` to the local API.
 
 ### Try the demo
 
-1. The landing page is Creator Studio. Choose a reviewed example or check a
-   draft. Draft checks need a thumbnail, title, and either a video or transcript.
+1. The first screen lists the safeguards; select **Enter Project Telos**. Creator Studio opens.
+   Choose a reviewed example or check a draft. Draft checks need a thumbnail, title, and either a video or transcript.
 2. Switch to **Viewer feed**, choose a goal, edit topics and boundaries, and confirm
    the interpreted profile. The default aviation/cooking/DIY topics show the full
    controlled story. Aviation-only intent filters the unrelated clips at the start.
@@ -95,6 +130,7 @@ npm run build
   map, policy, media pipeline, tests, and limitations.
 - [Prototype blueprint](docs/PROJECT_TELOS_PROTOTYPE_IDEA.md) — product scope,
   acceptance criteria, demo narrative, and research notes.
+- [Pitch deck (PDF)](docs/Project%20Telos%20-%20AI%20Builder%20Cup.pdf), its [slide content](docs/Submission.md), and the [demo video outline](docs/DEMO_VIDEO_SCRIPT.md).
 - [Hackathon problem statement](docs/Problem%20Statement.md).
 
 ## Project name

@@ -100,8 +100,9 @@ The API's interactive schema is at `/docs` while running locally.
 - Never commit `.env` or API keys. Keys use secret types and are not intended to
   appear in logs.
 - Treat media and captions as untrusted input.
-- The prototype has no user authentication; configure access controls and
-  provider-cost limits before a public launch.
+- The prototype has no user accounts. The open site relies on a per-visitor rate limit on
+  model-backed requests, capped Cloud Run instances, and a billing budget alert; an optional shared
+  access code can lock it. Add real authentication and per-user quotas before a public launch.
 - YouTube search filters candidates, but is not proof of safety. External YouTube
   playback is not frame-gated.
 - Offline mode uses reviewed fixtures; it must not be described as live model

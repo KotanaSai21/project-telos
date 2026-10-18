@@ -1,7 +1,7 @@
 # Project Telos — Hackathon pitch deck
 
 *Slide-ready content for the submission deck, in the order of the prescribed template.
-Each top-level section is one slide. The demo video script is in
+Each top-level section is one slide. The demo video outline is in
 [DEMO_VIDEO_SCRIPT.md](DEMO_VIDEO_SCRIPT.md).*
 
 **Category:** Social Good · **Problem statement:** AI that transforms how content is
@@ -245,19 +245,26 @@ Measured on the deployed configuration with the test drafts in
 
 - Deployed prototype: <https://project-telos-hget6gf4qq-ue.a.run.app>
 - Repository: <https://github.com/KotanaSai21/project-telos>
-- Demo video: `[Add public video URL]`
+- Demo video: <https://www.youtube.com/watch?v=b8YuM-SNoJo>
+- Pitch deck (PDF): [Project Telos - AI Builder Cup.pdf](Project%20Telos%20-%20AI%20Builder%20Cup.pdf)
 
 ---
 
 ## 12. Brief description (submission form)
 
-> **Project Telos** checks that a video keeps the promise its thumbnail makes. In
-> **Creator Studio**, **Gemini** (on Vertex AI) watches the draft or published video, reads the
-> thumbnail, and returns a **Promise → Proof → Fix** table: each promise, the evidence for it
-> with timestamps, and a concrete fix. It also measures **sentiment contradiction**, where the
-> topic matches but the emotion is fake. Creators revise, optionally get an honest
-> **Imagen** thumbnail, and recheck to see what changed. In the **viewer feed**, people declare
-> what they want, and every video is understood before it plays; a bait-and-switch is paused
-> before the switch. The app runs as one container on **Cloud Run**, deployed from GitHub
-> through Cloud Build. **Firebase** comes in through **Cloud Firestore**, which stores profiles,
-> sessions, analyses, and each creator's check history so revisions can be compared.
+> A thumbnail is a promise. Project Telos checks whether the video keeps it, helping creators earn trust
+> and viewers avoid clickbait.
+>
+> For creators, Gemini on Vertex AI compares the thumbnail with the video, checking both what it shows and
+> the emotion it promises. Creators see the promise, the evidence, and a concrete fix. Imagen can suggest
+> an honest thumbnail.
+>
+> For viewers, protection starts before exposure, not after they have to scroll past unwanted content.
+> Even when an algorithm pushes a video, Telos checks it against the viewer's declared intent before
+> playback. Off-topic content is filtered, and bait-and-switches are paused before the switch. Viewers
+> choose to watch, read a clean summary, or skip.
+>
+> Google Cloud powers the experience: Cloud Run hosts the app, Cloud Firestore saves preferences and
+> analysis history, and YouTube Data API supports discovery.
+>
+> Today's tools help you win the click. Project Telos helps you keep the promise.

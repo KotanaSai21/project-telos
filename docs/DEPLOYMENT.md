@@ -185,11 +185,6 @@ gcloud iam service-accounts add-iam-policy-binding $RUNTIME `
 Set-Content -NoNewline -Path youtube.key -Value "YOUR_YOUTUBE_KEY"
 gcloud secrets create YOUTUBE_API_KEY --data-file=youtube.key
 Remove-Item youtube.key
-
-# Site access code: every visitor must enter it before the app or API responds.
-Set-Content -NoNewline -Path access.code -Value "YOUR_ACCESS_CODE"
-gcloud secrets create PROJECT_TELOS_ACCESS_CODE --data-file=access.code
-Remove-Item access.code
 ```
 
 `Set-Content -NoNewline` avoids the trailing newline PowerShell piping adds, which
@@ -200,12 +195,8 @@ makes Google reject a key. Restrict the YouTube key to YouTube Data API v3.
 ```powershell
 gcloud run deploy project-telos --source . --region $REGION --allow-unauthenticated `
   --service-account $RUNTIME --memory 1Gi --max-instances 3 --timeout 300 `
-  --set-env-vars "PROJECT_TELOS_PROVIDER=vertex,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,PROJECT_TELOS_GEMINI_MODEL=gemini-3.5-flash,PROJECT_TELOS_OFFLINE_FALLBACK=false,PROJECT_TELOS_STORAGE=firestore,PROJECT_TELOS_BIGQUERY_ENABLED=true,PROJECT_TELOS_BIGQUERY_DATASET=project_telos_analytics,PROJECT_TELOS_TRANSLATION_ENABLED=true" `
-  --set-secrets "YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest,PROJECT_TELOS_ACCESS_CODE=PROJECT_TELOS_ACCESS_CODE:latest"
-
-# Optional one-line hint under the code box. ^|^ makes | the separator, because the hint has commas.
-gcloud run services update project-telos --region $REGION `
-  --update-env-vars '^|^PROJECT_TELOS_ACCESS_HINT=Two words, and the first one starts with "Chinna".|PROJECT_TELOS_ACCESS_HINT_ENABLED=true'
+  --set-env-vars "PROJECT_TELOS_PROVIDER=vertex,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,PROJECT_TELOS_GEMINI_MODEL=gemini-3.5-flash,PROJECT_TELOS_OFFLINE_FALLBACK=false,PROJECT_TELOS_STORAGE=firestore,PROJECT_TELOS_BIGQUERY_ENABLED=true,PROJECT_TELOS_BIGQUERY_DATASET=project_telos_analytics,PROJECT_TELOS_TRANSLATION_ENABLED=true,PROJECT_TELOS_RATE_LIMIT_PER_MINUTE=30" `
+  --set-secrets "YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest"
 
 $URL = gcloud run services describe project-telos --region $REGION --format="value(status.url)"
 gcloud run services update project-telos --region $REGION --update-env-vars "PROJECT_TELOS_ALLOWED_ORIGINS=$URL"
@@ -260,14 +251,48 @@ image is tagged with its short commit SHA.
 > connection and creates a Dockerfile-based trigger. It does not use
 > `cloudbuild.yaml` or the dedicated deployer account, so prefer the steps above.
 
-### Access code
+### Safeguards on an open site
+
+The deployed prototype is open: its first screen explains the safeguards and lets visitors in with one
+click. What keeps it safe and affordable:
+
+- **Per-visitor rate limit.** POSTs that can call Gemini, Imagen, or YouTube are limited per client
+  address per rolling minute (`PROJECT_TELOS_RATE_LIMIT_PER_MINUTE`, 30 in production). Over the limit,
+  the API answers 429 with `Retry-After`. Counters are in memory per instance, so this is a best-effort
+  cap on one visitor, not a global quota.
+- **Capped scale:** `--max-instances 3`.
+- **Billing budget alert:** a monthly budget on the project emails the billing admins at 50%, 90%, and
+  100% of actual spend, and when forecast spend passes 100%. Create one under **Billing → Budgets &
+  alerts**, or:
+
+  ```powershell
+  $BILLING_ACCOUNT = gcloud billing projects describe $PROJECT --format="value(billingAccountName.basename())"
+  gcloud billing budgets create --billing-account=$BILLING_ACCOUNT --display-name="Project Telos monthly budget" `
+    --budget-amount=1000INR --filter-projects=projects/$PROJECT --calendar-period=month `
+    --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0 `
+    --threshold-rule=percent=1.0,basis=forecasted-spend
+  ```
+
+  A budget alert warns; it does not stop spending.
+
+### Optional access code
+
+To lock the site, store a code in Secret Manager and attach it:
+
+```powershell
+Set-Content -NoNewline -Path access.code -Value "YOUR_ACCESS_CODE"
+gcloud secrets create PROJECT_TELOS_ACCESS_CODE --data-file=access.code
+Remove-Item access.code
+gcloud run services update project-telos --region $REGION --update-secrets "PROJECT_TELOS_ACCESS_CODE=PROJECT_TELOS_ACCESS_CODE:latest"
+```
 
 With `PROJECT_TELOS_ACCESS_CODE` set, the page asks for the code first, and every
 API route except `/api/health` and `/api/access/*` answers 401 without it. A correct
-code sets an HttpOnly cookie for seven days; changing the code signs everyone out.
-Case and spaces are ignored, and ten wrong tries in five minutes from one
-address are refused with 429. Hide the hint with
-`PROJECT_TELOS_ACCESS_HINT_ENABLED=false`; remove the secret to open the site.
+code sets an HttpOnly cookie for seven days that holds only an HMAC of the code;
+changing the code signs everyone out. Case and spaces are ignored, and ten wrong
+tries in five minutes from one address are refused with 429. An optional hint can
+be shown with `PROJECT_TELOS_ACCESS_HINT` and `PROJECT_TELOS_ACCESS_HINT_ENABLED=true`.
+Remove the secret (`--remove-secrets PROJECT_TELOS_ACCESS_CODE`) to open the site again.
 
 This is a shared password for a prototype, not user accounts.
 
