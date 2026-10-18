@@ -364,6 +364,7 @@ describe('Project Telos journey', () => {
     render(<App />);
     const toggle = await screen.findByRole('button', { name: /Switch to (light|dark) theme/ });
     const before = document.documentElement.dataset.theme;
+    expect(before).toBe('light');
     await userEvent.click(toggle);
     const after = document.documentElement.dataset.theme;
     expect(after).not.toBe(before);

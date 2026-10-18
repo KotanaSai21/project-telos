@@ -13,13 +13,9 @@ function storedTheme(): Theme | null {
   }
 }
 
-/** Saved choice first, then the operating-system preference, then the dark brand default. */
+/** The visitor's saved choice, otherwise light. The theme toggle switches to dark. */
 export function initialTheme(): Theme {
-  const saved = storedTheme();
-  if (saved) return saved;
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: light)').matches
-    ? 'light'
-    : 'dark';
+  return storedTheme() ?? 'light';
 }
 
 export function applyTheme(theme: Theme): void {
