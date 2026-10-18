@@ -1890,29 +1890,59 @@ a:focus-visible {
   padding-top: 14px;
 }
 
-.tt-explainer-also ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.tt-signal-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.tt-explainer-also li {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
+.tt-signal-cards li {
+  display: grid;
+  align-content: start;
+  gap: 5px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 7px 10px;
-  color: var(--muted);
-  font-size: 11px;
+  border-radius: 14px;
+  padding: 15px;
+  background:
+    linear-gradient(160deg, rgb(var(--c-baff6a) / 6%), transparent 60%),
+    var(--surface-raised);
+  transition: transform 200ms ease, border-color 200ms ease;
 }
 
-.tt-explainer-also li strong {
-  color: rgb(var(--c-f0f1e9));
-  font-weight: 600;
+.tt-signal-cards li:hover {
+  border-color: rgb(var(--c-baff6a) / 40%);
+  transform: translateY(-2px);
+}
+
+.tt-signal-cards strong {
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.tt-signal-cards small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tt-signal-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.tt-explainer-copy h2 .tt-signal-icon {
+  margin-right: 10px;
+  font-size: 0.9em;
+  vertical-align: -0.05em;
+}
+
+@media (max-width: 760px) {
+  .tt-signal-cards {
+    grid-template-columns: 1fr;
+  }
 }
 
 .tt-explainer-also summary {

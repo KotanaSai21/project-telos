@@ -151,7 +151,7 @@ function ContradictionExplainer({ onExample }: { onExample: (() => void) | null 
     <section className="tt-explainer" aria-labelledby="tt-explainer-title">
       <div className="tt-explainer-copy">
         <p className="eyebrow"><span className="eyebrow-dot" /> THE IDEA</p>
-        <h2 id="tt-explainer-title">Sentiment contradiction</h2>
+        <h2 id="tt-explainer-title"><span className="tt-signal-icon" aria-hidden="true">🎭</span>Sentiment contradiction</h2>
         <p>
           Every thumbnail sells a <strong>feeling</strong>. When the video never delivers that feeling (terror on
           the thumbnail, a calm tutorial inside), viewers feel tricked. Keyword filters miss this because the
@@ -185,11 +185,20 @@ function ContradictionExplainer({ onExample }: { onExample: (() => void) | null 
       </div>
 
       <div className="tt-explainer-also">
-        <span className="tt-muted">Also checked in the same pass:</span>
-        <ul>
-          <li><span aria-hidden="true">👻</span><strong>Ghost entities</strong> shown on the thumbnail, never in the video</li>
-          <li><span aria-hidden="true">⭕</span><strong>Visual exaggeration</strong> fake arrows, flames, scale tricks</li>
-          <li><span aria-hidden="true">🧭</span><strong>Thematic mismatch</strong> a different topic than promised</li>
+        <span className="tt-muted">Checked in the same pass:</span>
+        <ul className="tt-signal-cards">
+          <li>
+            <span className="tt-signal-icon" aria-hidden="true">👻</span>
+            <strong>Ghost entities</strong><small>Shown on the thumbnail, never in the video.</small>
+          </li>
+          <li>
+            <span className="tt-signal-icon" aria-hidden="true">⭕</span>
+            <strong>Visual exaggeration</strong><small>Fake arrows, circles, explosions, scale tricks.</small>
+          </li>
+          <li>
+            <span className="tt-signal-icon" aria-hidden="true">🧭</span>
+            <strong>Thematic mismatch</strong><small>A different topic or genre than the video delivers.</small>
+          </li>
         </ul>
         <details>
           <summary>How is the 0–100 risk score calculated?</summary>
