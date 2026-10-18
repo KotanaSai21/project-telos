@@ -340,8 +340,8 @@ describe('Project Telos journey', () => {
     expect(screen.getByTestId('thumbnail-truth')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Creator Studio/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/How is the 0–100 risk score calculated/)).toBeInTheDocument();
-    expect(screen.getByText(/Why it matters:/)).toBeInTheDocument();
-    expect(screen.getByText('Project Telos', { selector: 'dt' })).toBeInTheDocument();
+    expect(screen.getByText('Why this exists')).toBeInTheDocument();
+    expect(screen.getByText('Checks you keep the promise')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Viewer feed.*For viewers/ })).toBeInTheDocument();
     expect(screen.queryByText(/Grounded in/)).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Demo journey' })).not.toBeInTheDocument();

@@ -637,28 +637,35 @@ export function App() {
             <div className="creator-hero-copy">
               <p className="eyebrow"><span className="eyebrow-dot" /> CREATOR STUDIO · BEFORE YOU PUBLISH</p>
               <h1 id="creator-title" tabIndex={-1}>Does your thumbnail<br /><span>keep its promise?</span></h1>
-              <p className="creator-why">
-                <strong>Why it matters:</strong> viewers who feel tricked by a thumbnail click away and stop
-                trusting the channel. Catch the mismatch before you publish, not after.
-              </p>
-              <dl className="creator-diff" aria-label="How this is different">
-                <div>
-                  <dt>Thumbnail tools today</dt>
-                  <dd>Help you win the click: A/B tests and click-through predictions.</dd>
-                </div>
-                <div className="is-ours">
-                  <dt>Project Telos</dt>
-                  <dd>Checks you keep the promise: Gemini compares the feeling, objects, and topic on your
-                    thumbnail with evidence from the video, then shows you what to change.</dd>
-                </div>
-              </dl>
+              <div className="creator-problem">
+                <span className="creator-label">Why this exists</span>
+                <p>
+                  A thumbnail is a promise. When it oversells (a fake explosion, staged tears, an object that
+                  never appears) it wins the click but breaks the promise. Viewers feel tricked, leave early,
+                  and stop trusting the channel.
+                </p>
+              </div>
             </div>
-            <ol className="creator-pipeline" aria-label="How the check works">
-              <li><b>01</b><span>See an example</span><small>One click, no upload needed</small></li>
-              <li><b>02</b><span>Check your own</span><small>Thumbnail + video, or a YouTube link</small></li>
-              <li><b>03</b><span>Fix and recheck</span><small>Honest title and an Imagen thumbnail</small></li>
-            </ol>
+            <div className="creator-compare" aria-label="How this is different">
+              <div className="creator-compare-card is-today">
+                <span className="creator-label">Thumbnail tools today</span>
+                <strong>Help you win the click</strong>
+                <small>A/B tests and click-through predictions score the thumbnail, not whether the video delivers it.</small>
+              </div>
+              <span className="creator-compare-vs" aria-hidden="true">vs</span>
+              <div className="creator-compare-card is-ours">
+                <span className="creator-label">Project Telos</span>
+                <strong>Checks you keep the promise</strong>
+                <small>Gemini compares the feeling, objects, and topic on your thumbnail with the video, then
+                  shows what to change before you publish.</small>
+              </div>
+            </div>
           </div>
+          <ol className="creator-pipeline" aria-label="How the check works">
+            <li><b>01</b><span>See an example</span><small>One click, no upload needed</small></li>
+            <li><b>02</b><span>Check your own</span><small>Thumbnail + video, or a YouTube link</small></li>
+            <li><b>03</b><span>Fix and recheck</span><small>Honest title and an Imagen thumbnail</small></li>
+          </ol>
           <ThumbnailTruth />
         </section>
       )}
